@@ -1264,6 +1264,12 @@
       return value.replace(/\u0000/g, '').slice(0, max);
     }
 
+    function hasSubmittedUserMessage(conversation) {
+      return Boolean(conversation && Array.isArray(conversation.messages) && conversation.messages.some(message => (
+        message && message.role === 'user' && !message.carried && cleanText(message.text).trim()
+      )));
+    }
+
     function safeLoad() {
       try {
         const parsed = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || 'null');
@@ -1289,14 +1295,17 @@
             at: Number(message.at) || Date.now(),
             carried: Boolean(message.carried)
           })).filter(message => message.text) : []
-        })).slice(0, 100);
+        })).filter(hasSubmittedUserMessage).slice(0, 100);
       } catch (_) {
         return [];
       }
     }
 
     function save() {
-      const payload = { version: CONFIG.STORAGE_SCHEMA_VERSION, conversations: state.conversations.slice(0, 100) };
+      const payload = {
+        version: CONFIG.STORAGE_SCHEMA_VERSION,
+        conversations: state.conversations.filter(hasSubmittedUserMessage).slice(0, 100)
+      };
       try { localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(payload)); }
       catch (_) { showToast('브라우저 저장 공간이 부족해 기록을 저장하지 못했습니다.'); }
     }
@@ -1612,7 +1621,7 @@
     }
 
     function renderConversationList() {
-      const sorted = [...state.conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+      const sorted = state.conversations.filter(hasSubmittedUserMessage).sort((a, b) => b.updatedAt - a.updatedAt);
       if (!sorted.length) {
         const empty = document.createElement('div');
         empty.style.cssText = 'padding:18px 10px;color:var(--quiet);font-size:12px;line-height:1.55;text-align:center';
@@ -1813,6 +1822,7 @@
     }
 
     function createConversation(routeId, options = {}) {
+      state.conversations = state.conversations.filter(hasSubmittedUserMessage);
       const conversation = {
         id: uid('chat'),
         title: cleanText(options.title, 80) || '새 대화',
