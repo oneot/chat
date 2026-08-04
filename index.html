@@ -735,6 +735,13 @@
       max-width: 100%;
     }
 
+    /* Assistant messages use the clean ChatGPT-style text layout. */
+    #webchat .webchat__stacked-layout__avatar-gutter,
+    #webchat .webchat__stacked-layout__avatar,
+    #webchat [class*="avatar-gutter"] {
+      display: none !important;
+    }
+
     #webchat .webchat__bubble {
       box-shadow: none !important;
       line-height: 1.65 !important;
@@ -747,25 +754,40 @@
 
     #webchat .webchat__bubble--from-user {
       border-color: transparent !important;
-      background: #ececec !important;
+      border-radius: 18px !important;
+      background: #ededed !important;
+      overflow: hidden !important;
+    }
+
+    #webchat .webchat__bubble--from-user > div,
+    #webchat .webchat__bubble--from-user .webchat__bubble__content {
+      border-radius: 18px !important;
     }
 
     #webchat .webchat__send-box {
+      position: relative;
       width: min(820px, calc(100% - 40px));
-      min-height: 92px;
+      min-height: 104px;
       margin: 0 auto 18px;
-      overflow: visible;
+      overflow: hidden;
       border: 1px solid rgba(15, 15, 15, .11) !important;
-      border-radius: 24px;
+      border-radius: 27px !important;
       background: rgba(255, 255, 255, .97) !important;
       box-shadow: 0 10px 30px rgba(0, 0, 0, .07), 0 1px 2px rgba(0, 0, 0, .04);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
     }
 
+    #webchat .webchat__send-box > div,
+    #webchat .webchat__send-box__main,
     #webchat .webchat__send-box-text-box {
-      min-height: 88px !important;
-      padding: 9px 180px 34px 7px !important;
+      border-color: transparent !important;
+      background: transparent !important;
+    }
+
+    #webchat .webchat__send-box-text-box {
+      min-height: 100px !important;
+      padding: 10px 8px 42px !important;
     }
 
     #webchat .webchat__send-box-text-box__input {
@@ -776,12 +798,42 @@
     }
 
     #webchat .webchat__send-box__button {
-      margin: auto 8px 8px 0;
+      align-self: flex-end;
       border-radius: 999px !important;
     }
 
+    /* Built-in upload control: paperclip -> simple plus button. */
+    #webchat .webchat__send-box__button:not(:last-child) {
+      width: 38px !important;
+      min-width: 38px !important;
+      height: 38px !important;
+      margin: auto 0 8px 9px !important;
+      padding: 0 !important;
+      color: #2c2c2c !important;
+      background: transparent !important;
+    }
+
+    #webchat .webchat__send-box__button:not(:last-child) svg { display: none !important; }
+
+    #webchat .webchat__send-box__button:not(:last-child)::before {
+      content: '+';
+      display: block;
+      font-size: 28px;
+      font-weight: 300;
+      line-height: 1;
+      transform: translateY(-1px);
+    }
+
     #webchat .webchat__send-box__button:last-child {
+      width: 40px !important;
+      min-width: 40px !important;
+      max-width: 40px !important;
+      height: 40px !important;
+      flex: 0 0 40px !important;
+      margin: auto 10px 8px 0 !important;
+      padding: 0 !important;
       background: #1f1f1f !important;
+      overflow: hidden !important;
     }
 
     #webchat .webchat__send-box__button:last-child svg {
@@ -802,14 +854,22 @@
 
     .composer-model-layer {
       position: absolute;
-      right: max(66px, calc((100% - 820px) / 2 + 66px));
-      bottom: 28px;
+      left: 50%;
+      bottom: 18px;
+      width: min(820px, calc(100% - 40px));
+      height: 104px;
+      transform: translateX(-50%);
       z-index: 30;
       pointer-events: none;
     }
 
     .composer-model-layer[hidden] { display: none; }
-    .model-picker { position: relative; pointer-events: auto; }
+    .model-picker {
+      position: absolute;
+      right: 61px;
+      bottom: 9px;
+      pointer-events: auto;
+    }
 
     .model-picker-button {
       min-height: 30px;
@@ -941,9 +1001,9 @@
 
     @media (max-width: 780px) {
       #webchat .webchat__basic-transcript__activity { width: calc(100% - 24px); }
-      #webchat .webchat__send-box { width: calc(100% - 20px); margin-bottom: 10px; border-radius: 20px; }
-      #webchat .webchat__send-box-text-box { padding-right: 164px !important; }
-      .composer-model-layer { right: 60px; bottom: 20px; }
+      #webchat .webchat__send-box { width: calc(100% - 20px); margin-bottom: 10px; border-radius: 23px !important; }
+      .composer-model-layer { bottom: 10px; width: calc(100% - 20px); }
+      .model-picker { right: 54px; }
       .model-picker-button { max-width: 130px; }
       .model-picker-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .continue-model-options { justify-content: flex-start; }
@@ -1496,7 +1556,7 @@
     function showState(title, message, actionLabel, action) {
       elements.archive.hidden = true;
       elements.webchat.hidden = false;
-      elements.composerModelLayer.hidden = false;
+      elements.composerModelLayer.hidden = true;
       elements.webchat.replaceChildren();
       const panel = document.createElement('div'); panel.className = 'state-panel';
       const card = document.createElement('div'); card.className = 'state-card';
@@ -1599,17 +1659,19 @@
             bubbleBorderRadius: 0,
             bubbleFromUserBackground: '#ececec',
             bubbleFromUserBorderColor: 'transparent',
+            bubbleFromUserBorderRadius: 18,
+            bubbleFromUserNubSize: 0,
             bubbleFromUserTextColor: '#202020',
             bubbleMaxWidth: 760,
-            botAvatarBackgroundColor: '#202020',
-            botAvatarInitials: 'S',
+            botAvatarBackgroundColor: 'transparent',
+            botAvatarInitials: '',
             hideUploadButton: false,
             primaryFont: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
             sendBoxBackground: '#ffffff',
             sendBoxBorderTop: 'none',
             sendBoxButtonColor: '#2b2b2b',
             sendBoxButtonColorOnHover: '#000000',
-            sendBoxHeight: 90,
+            sendBoxHeight: 104,
             sendBoxTextColor: '#202020',
             subtle: '#747474',
             timestampColor: '#969696'
