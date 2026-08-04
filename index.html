@@ -126,7 +126,7 @@
     .section-label {
       margin: 21px 9px 8px;
       color: var(--quiet);
-      font-size: 11px;
+      font-size: 20px;
       font-weight: 680;
       letter-spacing: .06em;
       text-transform: uppercase;
@@ -516,7 +516,7 @@
       color: #fff;
       background: linear-gradient(135deg, #6d8bff 0%, #9b85f8 58%, #e6a7ef 100%);
       box-shadow: 0 5px 16px rgba(109, 139, 255, .38);
-      font-size: 20px;
+      font-size: 11px;
       font-weight: 750;
       letter-spacing: -.02em;
     }
@@ -1010,6 +1010,30 @@
       transition: color 140ms ease, background 140ms ease;
     }
 
+    .model-picker-current-glyph {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 8px;
+      border-radius: 999px;
+      background: #a78bfa;
+      box-shadow: 0 0 0 3px rgba(167,139,250,.12);
+      animation: currentModelGlow 2.2s ease-in-out infinite;
+    }
+
+    .model-picker-current-glyph[data-route="sonnet5"] { background: #fb7185; box-shadow: 0 0 0 3px rgba(251,113,133,.12); }
+    .model-picker-current-glyph[data-route="opus5"] { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.12); }
+    .model-picker-current-glyph[data-route="gpt55"] { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.13); }
+    .model-picker-current-glyph[data-route="gpt56"] { background: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.13); }
+
+    @keyframes currentModelGlow {
+      0%, 100% { transform: scale(.9); opacity: .72; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .model-picker-current-glyph { animation: none; }
+    }
+
     .model-picker-button:hover,
     .model-picker-button[aria-expanded="true"] {
       color: #1f1f1f;
@@ -1187,6 +1211,7 @@
         <div class="composer-model-layer" id="composerModelLayer" hidden>
           <div class="model-picker" id="modelPicker">
             <button class="model-picker-button" id="modelPickerButton" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="model-picker-current-glyph" id="modelPickerGlyph" data-route="auto" aria-hidden="true"></span>
               <span class="model-picker-label" id="modelPickerLabel">Auto</span>
               <span class="model-picker-chevron" aria-hidden="true">⌄</span>
             </button>
@@ -1245,7 +1270,7 @@
       webchat: $('#webchat'), archive: $('#archive'), chatList: $('#chatList'),
       modelSelect: $('#modelSelect'), routeBadge: $('#routeBadge'),
       composerModelLayer: $('#composerModelLayer'), modelPickerButton: $('#modelPickerButton'),
-      modelPickerLabel: $('#modelPickerLabel'), modelPickerMenu: $('#modelPickerMenu'),
+      modelPickerGlyph: $('#modelPickerGlyph'), modelPickerLabel: $('#modelPickerLabel'), modelPickerMenu: $('#modelPickerMenu'),
       sessionTitle: $('#sessionTitle'), sessionSubtitle: $('#sessionSubtitle'),
       connectionStatus: $('#connectionStatus'), responseLoader: $('#responseLoader'), toast: $('#toast')
     };
@@ -1587,6 +1612,7 @@
     function syncModelPicker(routeId) {
       const model = routeById(routeId);
       elements.modelSelect.value = model.id;
+      elements.modelPickerGlyph.dataset.route = model.id;
       elements.modelPickerLabel.textContent = model.label;
       elements.modelPickerMenu.querySelectorAll('.model-menu-item').forEach(item => {
         item.setAttribute('aria-selected', String(item.dataset.route === model.id));
@@ -1715,6 +1741,10 @@
         routePickerButton.setAttribute('aria-haspopup', 'listbox');
         routePickerButton.setAttribute('aria-expanded', 'false');
         routePickerButton.setAttribute('aria-label', '이전 대화를 이어갈 모델 선택');
+        const routePickerGlyph = document.createElement('span');
+        routePickerGlyph.className = 'model-picker-current-glyph';
+        routePickerGlyph.dataset.route = selectedRoute;
+        routePickerGlyph.setAttribute('aria-hidden', 'true');
         const routePickerLabel = document.createElement('span');
         routePickerLabel.className = 'model-picker-label';
         routePickerLabel.textContent = routeById(selectedRoute).label;
@@ -1722,7 +1752,7 @@
         routePickerChevron.className = 'model-picker-chevron';
         routePickerChevron.setAttribute('aria-hidden', 'true');
         routePickerChevron.textContent = '⌄';
-        routePickerButton.append(routePickerLabel, routePickerChevron);
+        routePickerButton.append(routePickerGlyph, routePickerLabel, routePickerChevron);
 
         const routeMenu = document.createElement('div');
         routeMenu.className = 'model-picker-menu';
@@ -1753,6 +1783,7 @@
           option.append(glyph, copy, check);
           option.addEventListener('click', () => {
             selectedRoute = model.id;
+            routePickerGlyph.dataset.route = model.id;
             routePickerLabel.textContent = model.label;
             routeMenu.querySelectorAll('.model-menu-item').forEach(item => {
               item.setAttribute('aria-selected', String(item === option));
