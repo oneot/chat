@@ -255,6 +255,7 @@
     .workspace { position: relative; min-height: 0; overflow: hidden; }
     #webchat, #archive { width: 100%; height: 100%; }
     #webchat { background: transparent; }
+    .webchat-mount { width: 100%; height: 100%; min-height: 0; }
 
     .state-panel, .empty-state {
       height: 100%;
@@ -1070,7 +1071,15 @@
           return next(action);
         });
 
-        elements.webchat.replaceChildren();
+        // Web Chat uses a React root internally. Reusing a container whose
+        // children were removed during a model switch can leave that root in
+        // a connected-but-blank state. Mount every session into a fresh node.
+        const webChatMount = document.createElement('div');
+        webChatMount.className = 'webchat-mount';
+        webChatMount.setAttribute('role', 'region');
+        webChatMount.setAttribute('aria-label', model.label + ' 대화');
+        elements.webchat.replaceChildren(webChatMount);
+
         window.WebChat.renderWebChat({
           directLine,
           store,
@@ -1099,8 +1108,8 @@
             subtle: '#687386',
             timestampColor: '#8e98a8'
           }
-        }, elements.webchat);
-        elements.webchat.querySelector('*')?.focus?.();
+        }, webChatMount);
+        webChatMount.querySelector('*')?.focus?.();
       } catch (error) {
         if (serial !== state.connectionSerial) return;
         setStatus('error', '연결 실패');
