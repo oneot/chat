@@ -1,0 +1,1156 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="학교 구성원을 위한 멀티 모델 AI 채팅 서비스">
+  <title>SchoolAI</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+  <script src="https://cdn.botframework.com/botframework-webchat/latest/webchat.js"></script>
+  <style>
+    :root {
+      --page: #f3f5f7;
+      --page-accent: #e8edf4;
+      --glass: rgba(255, 255, 255, 0.72);
+      --glass-strong: rgba(255, 255, 255, 0.9);
+      --line: rgba(27, 38, 55, 0.1);
+      --line-strong: rgba(27, 38, 55, 0.16);
+      --ink: #172033;
+      --muted: #687386;
+      --quiet: #8e98a8;
+      --accent: #1e63e9;
+      --accent-soft: #e9f0ff;
+      --danger: #c63d49;
+      --shadow: 0 18px 60px rgba(25, 39, 61, 0.09);
+      --radius-xl: 26px;
+      --radius-lg: 18px;
+      --radius-md: 13px;
+      --sidebar-width: 282px;
+      --ease: 180ms cubic-bezier(.2, .75, .25, 1);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(255,255,255,.98) 0 16%, transparent 42%),
+        radial-gradient(circle at 88% 92%, rgba(218,228,243,.7), transparent 38%),
+        linear-gradient(135deg, var(--page), var(--page-accent));
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, select, textarea { font: inherit; }
+
+    button, select { -webkit-tap-highlight-color: transparent; }
+
+    button:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 3px solid rgba(30, 99, 233, .2);
+      outline-offset: 2px;
+    }
+
+    .app-shell {
+      width: min(1540px, calc(100% - 28px));
+      height: min(940px, calc(100% - 28px));
+      margin: 14px auto;
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      border: 1px solid rgba(255,255,255,.86);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      background: rgba(255,255,255,.42);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(30px) saturate(135%);
+      -webkit-backdrop-filter: blur(30px) saturate(135%);
+    }
+
+    .sidebar {
+      position: relative;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 14px 14px;
+      border-right: 1px solid var(--line);
+      background: rgba(246, 248, 251, .74);
+      z-index: 5;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 2px 8px 18px;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      color: white;
+      background: linear-gradient(145deg, #252f43, #111827);
+      box-shadow: 0 7px 18px rgba(19, 29, 47, .16);
+      font-size: 15px;
+      font-weight: 760;
+      letter-spacing: -.04em;
+    }
+
+    .brand-copy strong { display: block; font-size: 15px; letter-spacing: -.015em; }
+    .brand-copy span { display: block; margin-top: 2px; color: var(--quiet); font-size: 11px; }
+
+    .new-chat {
+      width: 100%;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-md);
+      color: var(--ink);
+      background: var(--glass-strong);
+      cursor: pointer;
+      transition: transform var(--ease), border-color var(--ease), background var(--ease);
+    }
+
+    .new-chat:hover { transform: translateY(-1px); border-color: rgba(30,99,233,.25); background: #fff; }
+
+    .section-label {
+      margin: 21px 9px 8px;
+      color: var(--quiet);
+      font-size: 11px;
+      font-weight: 680;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .chat-list {
+      min-height: 0;
+      flex: 1;
+      overflow: auto;
+      padding: 0 2px 10px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(80,91,108,.22) transparent;
+    }
+
+    .chat-item {
+      position: relative;
+      width: 100%;
+      min-height: 48px;
+      margin: 2px 0;
+      display: grid;
+      grid-template-columns: minmax(0,1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 8px 8px 11px;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      color: inherit;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .chat-item:hover { background: rgba(255,255,255,.68); }
+    .chat-item[aria-current="true"] { border-color: var(--line); background: rgba(255,255,255,.86); }
+    .chat-main { min-width: 0; }
+    .chat-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 590; }
+    .chat-meta { margin-top: 4px; color: var(--quiet); font-size: 10px; }
+
+    .item-menu {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 9px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      opacity: .2;
+    }
+
+    .chat-item:hover .item-menu, .item-menu:focus-visible { opacity: 1; }
+
+    .sidebar-footer { padding: 12px 6px 2px; border-top: 1px solid var(--line); }
+
+    .clear-history {
+      width: 100%;
+      padding: 9px 8px;
+      border: 0;
+      border-radius: 10px;
+      color: var(--muted);
+      background: transparent;
+      text-align: left;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .clear-history:hover { color: var(--danger); background: rgba(198,61,73,.06); }
+
+    .main {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0,1fr) auto;
+      background: rgba(255,255,255,.56);
+    }
+
+    .topbar {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 13px clamp(15px, 3vw, 34px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.58);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      z-index: 3;
+    }
+
+    .topbar-left { min-width: 0; display: flex; align-items: center; gap: 12px; }
+    .mobile-menu { display: none; }
+    .session-copy { min-width: 0; }
+    .session-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 670; }
+    .session-subtitle { margin-top: 3px; color: var(--quiet); font-size: 11px; }
+
+    .route-control { display: flex; align-items: center; gap: 9px; }
+
+    .route-badge {
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 6px 9px;
+      border: 1px solid rgba(30,99,233,.13);
+      border-radius: 999px;
+      color: #2457af;
+      background: var(--accent-soft);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .01em;
+    }
+
+    .model-select {
+      min-height: 40px;
+      max-width: 210px;
+      padding: 0 36px 0 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      color: var(--ink);
+      background: rgba(255,255,255,.86);
+      cursor: pointer;
+    }
+
+    .workspace { position: relative; min-height: 0; overflow: hidden; }
+    #webchat, #archive { width: 100%; height: 100%; }
+    #webchat { background: transparent; }
+
+    .state-panel, .empty-state {
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+    }
+
+    .state-card, .empty-card {
+      width: min(560px, 100%);
+      padding: clamp(24px, 5vw, 42px);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: rgba(255,255,255,.72);
+      box-shadow: 0 16px 46px rgba(30,42,61,.06);
+      text-align: center;
+    }
+
+    .orb {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 17px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(30,99,233,.15);
+      border-radius: 17px;
+      color: var(--accent);
+      background: linear-gradient(145deg, #fff, #e9f0ff);
+      font-weight: 760;
+      box-shadow: 0 10px 30px rgba(30,99,233,.12);
+    }
+
+    .state-card h2, .empty-card h2 { margin: 0; font-size: clamp(21px, 3vw, 29px); letter-spacing: -.035em; }
+    .state-card p, .empty-card p { margin: 11px auto 0; max-width: 460px; color: var(--muted); font-size: 13px; line-height: 1.65; }
+
+    .primary-button, .secondary-button {
+      min-height: 41px;
+      margin-top: 19px;
+      padding: 0 16px;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    .primary-button { border: 1px solid #1e5fdd; color: white; background: var(--accent); }
+    .secondary-button { border: 1px solid var(--line-strong); color: var(--ink); background: white; }
+
+    .archive-view { height: 100%; overflow: auto; padding: 30px clamp(18px, 6vw, 88px); }
+    .archive-note { max-width: 760px; margin: 0 auto 22px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); background: rgba(255,255,255,.72); font-size: 12px; line-height: 1.55; }
+    .archive-message { max-width: 760px; margin: 0 auto 18px; }
+    .archive-role { margin-bottom: 5px; color: var(--quiet); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .archive-bubble { display: inline-block; max-width: 86%; padding: 11px 14px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.82); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.58; }
+    .archive-message.user { text-align: right; }
+    .archive-message.user .archive-bubble { color: white; border-color: #1b5cdb; background: var(--accent); text-align: left; }
+
+    .statusbar {
+      min-height: 35px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px clamp(15px, 3vw, 34px);
+      border-top: 1px solid var(--line);
+      color: var(--quiet);
+      background: rgba(255,255,255,.62);
+      font-size: 10px;
+    }
+
+    .status-dot { width: 6px; height: 6px; display: inline-block; margin-right: 6px; border-radius: 50%; background: #a5adba; }
+    .status-dot.online { background: #39a568; box-shadow: 0 0 0 3px rgba(57,165,104,.1); }
+    .status-dot.error { background: var(--danger); }
+    .privacy-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      max-width: min(460px, calc(100% - 32px));
+      padding: 11px 15px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      color: var(--ink);
+      background: rgba(255,255,255,.95);
+      box-shadow: 0 12px 40px rgba(18,31,52,.15);
+      transform: translate(-50%, 12px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--ease), transform var(--ease);
+      z-index: 20;
+      font-size: 12px;
+    }
+
+    .toast.visible { opacity: 1; transform: translate(-50%, 0); }
+    .sidebar-scrim { display: none; }
+
+    @media (max-width: 780px) {
+      .app-shell { width: 100%; height: 100%; margin: 0; grid-template-columns: 1fr; border: 0; border-radius: 0; }
+      .sidebar { position: fixed; inset: 0 auto 0 0; width: min(310px, 86vw); transform: translateX(-102%); transition: transform var(--ease); box-shadow: 18px 0 48px rgba(20,31,50,.16); }
+      body.sidebar-open .sidebar { transform: translateX(0); }
+      .sidebar-scrim { position: fixed; inset: 0; display: block; border: 0; background: rgba(26,37,54,.2); opacity: 0; pointer-events: none; transition: opacity var(--ease); z-index: 4; }
+      body.sidebar-open .sidebar-scrim { opacity: 1; pointer-events: auto; }
+      .mobile-menu { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); background: rgba(255,255,255,.82); cursor: pointer; }
+      .topbar { min-height: 66px; }
+      .route-badge { display: none; }
+      .model-select { max-width: 156px; font-size: 12px; }
+      .session-subtitle { display: none; }
+      .statusbar { padding-bottom: max(7px, env(safe-area-inset-bottom)); }
+    }
+
+    @media (max-width: 470px) {
+      .session-copy { display: none; }
+      .topbar { padding-inline: 11px; }
+      .model-select { max-width: 202px; }
+      .privacy-note { max-width: 54vw; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+  <style id="schoolai-design-refresh">
+    /* Reference-inspired visual refresh. Application behavior is unchanged. */
+    :root {
+      --page: #eef1f8;
+      --page-accent: #f4f1fb;
+      --glass: rgba(255, 255, 255, .62);
+      --glass-strong: rgba(255, 255, 255, .84);
+      --line: rgba(16, 24, 40, .075);
+      --line-strong: rgba(16, 24, 40, .11);
+      --ink: #101828;
+      --muted: #5b6472;
+      --quiet: #98a2b3;
+      --accent: #4f6af0;
+      --accent-soft: rgba(79, 106, 240, .1);
+      --danger: #c54851;
+      --shadow: 0 9px 34px rgba(16, 24, 40, .075);
+      --radius-xl: 20px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --sidebar-width: 272px;
+      --ease: 180ms cubic-bezier(.22, .72, .22, 1);
+    }
+
+    body {
+      position: relative;
+      background: var(--page);
+      font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -20%;
+      z-index: -1;
+      pointer-events: none;
+      background:
+        radial-gradient(42rem 42rem at 10% 6%, rgba(120, 150, 255, .3), transparent 61%),
+        radial-gradient(39rem 39rem at 91% 10%, rgba(255, 158, 205, .25), transparent 60%),
+        radial-gradient(46rem 46rem at 72% 96%, rgba(126, 231, 214, .25), transparent 62%),
+        radial-gradient(31rem 31rem at 18% 92%, rgba(255, 214, 150, .2), transparent 61%);
+      filter: blur(10px);
+    }
+
+    .app-shell {
+      width: calc(100% - 28px);
+      height: calc(100% - 28px);
+      max-width: none;
+      max-height: none;
+      margin: 14px;
+      gap: 14px;
+      overflow: visible;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .sidebar,
+    .main {
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .86);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, .61);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+    }
+
+    .sidebar {
+      padding: 18px 12px 12px;
+      border-right: 1px solid rgba(255, 255, 255, .86);
+    }
+
+    .main { box-shadow: 0 20px 60px rgba(16, 24, 40, .105); }
+
+    .brand { gap: 10px; padding: 0 4px 16px; }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      border: 0;
+      border-radius: 10px;
+      color: #fff;
+      background: linear-gradient(135deg, #6d8bff 0%, #9b85f8 58%, #e6a7ef 100%);
+      box-shadow: 0 5px 16px rgba(109, 139, 255, .38);
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: -.02em;
+    }
+
+    .brand-copy strong { font-size: 15px; font-weight: 650; letter-spacing: -.02em; }
+    .brand-copy span { margin-top: 1px; font-size: 11px; color: var(--quiet); }
+
+    .new-chat {
+      min-height: 43px;
+      border-color: var(--line);
+      border-radius: 13px;
+      background: rgba(255, 255, 255, .7);
+      box-shadow: 0 2px 10px rgba(16, 24, 40, .045);
+      font-size: 13px;
+      font-weight: 630;
+    }
+
+    .new-chat:hover {
+      transform: translateY(-1px);
+      border-color: rgba(79, 106, 240, .22);
+      background: rgba(255, 255, 255, .9);
+      box-shadow: 0 7px 20px rgba(16, 24, 40, .08);
+    }
+
+    .section-label {
+      margin: 20px 8px 7px;
+      font-size: 10.5px;
+      font-weight: 720;
+      letter-spacing: .07em;
+    }
+
+    .chat-list { padding: 0 0 10px; }
+
+    .chat-item {
+      min-height: 49px;
+      margin: 2px 0;
+      padding: 8px 7px 8px 10px;
+      border: 0;
+      border-radius: 11px;
+      color: var(--muted);
+      transition: background var(--ease), color var(--ease), transform var(--ease);
+    }
+
+    .chat-item:hover { color: var(--ink); background: rgba(255, 255, 255, .55); }
+
+    .chat-item[aria-current="true"] {
+      border: 0;
+      color: var(--ink);
+      background: rgba(255, 255, 255, .82);
+      box-shadow: 0 2px 9px rgba(16, 24, 40, .055);
+    }
+
+    .chat-title { font-size: 13px; font-weight: 590; }
+    .chat-meta { margin-top: 3px; font-size: 10px; }
+    .item-menu { color: var(--quiet); }
+    .item-menu:hover { color: var(--ink); background: rgba(16, 24, 40, .055); }
+
+    .sidebar-footer { padding: 10px 2px 0; }
+    .clear-history { padding: 9px 8px; border-radius: 9px; font-size: 11.5px; }
+
+    .topbar {
+      min-height: 61px;
+      padding: 10px 16px;
+      border-bottom-color: var(--line);
+      background: rgba(255, 255, 255, .22);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .session-title { font-size: 14px; font-weight: 650; letter-spacing: -.015em; }
+    .session-subtitle { font-size: 10.5px; }
+    .route-control { gap: 8px; }
+
+    .route-badge {
+      padding: 5px 9px;
+      border-color: rgba(79, 106, 240, .13);
+      color: #5265c7;
+      background: rgba(79, 106, 240, .085);
+      font-weight: 650;
+    }
+
+    .model-select {
+      min-height: 37px;
+      max-width: 205px;
+      padding-left: 12px;
+      border-color: var(--line);
+      border-radius: 13px;
+      background: rgba(255, 255, 255, .62);
+      font-size: 12.5px;
+      font-weight: 610;
+      transition: border-color var(--ease), background var(--ease), box-shadow var(--ease);
+    }
+
+    .model-select:hover,
+    .model-select:focus {
+      border-color: rgba(79, 106, 240, .3);
+      background: rgba(255, 255, 255, .88);
+      box-shadow: 0 6px 18px rgba(79, 106, 240, .08);
+    }
+
+    .workspace { background: rgba(255, 255, 255, .07); }
+
+    .state-panel,
+    .empty-state { padding: 24px; }
+
+    .state-card,
+    .empty-card {
+      width: min(530px, 100%);
+      padding: clamp(26px, 5vw, 42px);
+      border-color: rgba(255, 255, 255, .9);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, .58);
+      box-shadow: 0 18px 55px rgba(16, 24, 40, .075);
+      backdrop-filter: blur(18px) saturate(155%);
+      -webkit-backdrop-filter: blur(18px) saturate(155%);
+    }
+
+    .orb {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 18px;
+      border: 0;
+      border-radius: 15px;
+      color: #fff;
+      background: linear-gradient(135deg, #6d8bff, #a78bfa 58%, #ecadf2);
+      box-shadow: 0 7px 22px rgba(109, 139, 255, .3);
+      font-size: 11px;
+    }
+
+    .state-card h2,
+    .empty-card h2 {
+      color: var(--ink);
+      font-size: clamp(21px, 3vw, 27px);
+      font-weight: 720;
+      letter-spacing: -.045em;
+    }
+
+    .state-card p,
+    .empty-card p { margin-top: 10px; color: var(--muted); line-height: 1.65; }
+
+    .primary-button {
+      min-height: 40px;
+      padding: 0 17px;
+      border: 0;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #6d8bff, #8178ef);
+      box-shadow: 0 5px 16px rgba(109, 139, 255, .3);
+      font-size: 13px;
+      font-weight: 640;
+      transition: transform var(--ease), box-shadow var(--ease);
+    }
+
+    .primary-button:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(109, 139, 255, .35); }
+
+    .secondary-button {
+      min-height: 40px;
+      border-color: var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .7);
+      font-size: 13px;
+    }
+
+    .archive-view { padding: 28px clamp(18px, 6vw, 82px); }
+    .archive-note { border-color: rgba(255, 255, 255, .84); background: rgba(255, 255, 255, .52); }
+    .archive-bubble { border-color: var(--line); background: rgba(255, 255, 255, .72); }
+    .archive-message.user .archive-bubble { color: #28345c; border-color: rgba(79, 106, 240, .15); background: rgba(79, 106, 240, .11); }
+
+    .statusbar {
+      min-height: 33px;
+      padding: 6px 16px;
+      border-top-color: var(--line);
+      background: rgba(255, 255, 255, .22);
+    }
+
+    .status-dot.online { background: #4eaf78; }
+
+    .toast {
+      border-color: rgba(255, 255, 255, .88);
+      border-radius: 13px;
+      background: rgba(255, 255, 255, .8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    #webchat .webchat__basic-transcript { padding-top: 18px; }
+    #webchat .webchat__send-box { backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+
+    @media (max-width: 780px) {
+      .app-shell { width: 100%; height: 100%; margin: 0; gap: 0; }
+      .main { margin: 8px; border-radius: 18px; }
+      .sidebar {
+        inset: 8px auto 8px 8px;
+        width: min(306px, calc(100vw - 30px));
+        border-radius: 18px;
+        box-shadow: 18px 0 48px rgba(16, 24, 40, .16);
+      }
+      .mobile-menu { border-color: var(--line); background: rgba(255, 255, 255, .62); }
+      .model-select { max-width: 166px; }
+      .topbar { min-height: 59px; padding-inline: 11px; }
+    }
+
+    @media (max-width: 470px) {
+      .main { margin: 0; border: 0; border-radius: 0; }
+      .model-select { max-width: 204px; }
+      .state-panel { padding: 17px; }
+      .state-card { padding: 31px 21px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="대화 목록">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">AI</div>
+        <div class="brand-copy"><strong id="brandName">SchoolAI</strong><span>학교를 위한 멀티 모델 AI</span></div>
+      </div>
+      <button class="new-chat" id="newChatButton" type="button"><span aria-hidden="true">＋</span> 새 대화</button>
+      <div class="section-label">최근 대화</div>
+      <div class="chat-list" id="chatList"></div>
+      <div class="sidebar-footer">
+        <button class="clear-history" id="clearHistoryButton" type="button">이 브라우저의 전체 기록 삭제</button>
+      </div>
+    </aside>
+
+    <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="사이드바 닫기"></button>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu" id="mobileMenuButton" type="button" aria-label="대화 목록 열기">☰</button>
+          <div class="session-copy">
+            <div class="session-title" id="sessionTitle">새 대화</div>
+            <div class="session-subtitle" id="sessionSubtitle">새 보안 세션을 준비합니다</div>
+          </div>
+        </div>
+        <div class="route-control">
+          <span class="route-badge" id="routeBadge">연결 대상 · Auto</span>
+          <label>
+            <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">모델 선택</span>
+            <select class="model-select" id="modelSelect" aria-label="연결할 모델 선택"></select>
+          </label>
+        </div>
+      </header>
+
+      <section class="workspace" id="workspace" aria-live="polite">
+        <div id="webchat" role="main" aria-label="SchoolAI 채팅"></div>
+        <div id="archive" hidden></div>
+      </section>
+
+      <footer class="statusbar">
+        <div id="connectionStatus"><span class="status-dot"></span>준비 중</div>
+        <div class="privacy-note">대화 기록은 이 브라우저에만 저장됩니다 · 민감정보 입력 금지</div>
+      </footer>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    'use strict';
+
+    // ──────────────────────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+    // 수강생 실습: 아래 TOKEN_ENDPOINT 한 줄에 강사가 제공한 URL만 붙여넣으세요.
+    // Direct Line secret이나 Azure Function key는 절대 입력하지 마세요.
+    // 이 템플릿은 강사의 공용 실습 에이전트 5개에 연결됩니다.
+    // ══════════════════════════════════════════════════════════════════════
+    // ──────────────────────────────────────────────────────────────────────
+    const CONFIG = Object.freeze({
+      TOKEN_ENDPOINT: 'https://schoolai-token-joowon-2026-fncpbbbbemejc8af.koreacentral-01.azurewebsites.net/api/direct-line-token',
+      SERVICE_NAME: 'SchoolAI',
+      STORAGE_KEY: 'schoolai.conversations',
+      STORAGE_SCHEMA_VERSION: 1,
+      DEBUG: false,
+      MODELS: Object.freeze([
+        { id: 'auto', label: 'Auto', target: 'SchoolAI-Orchestrator' },
+        { id: 'sonnet5', label: 'Claude Sonnet 5', target: 'CA1-Claude Sonnet5' },
+        { id: 'opus5', label: 'Claude Opus 5', target: 'CA2-Claude Opus5' },
+        { id: 'gpt55', label: 'GPT-5.5 Chat', target: 'CA3-GPT-5.5 Chat' },
+        { id: 'gpt56', label: 'GPT-5.6 Reasoning', target: 'CA4-GPT-5.6 Reasoning' }
+      ])
+    });
+
+    const state = {
+      conversations: [],
+      activeId: null,
+      directLine: null,
+      connectionSerial: 0,
+      toastTimer: null
+    };
+
+    const $ = (selector) => document.querySelector(selector);
+    const elements = {
+      webchat: $('#webchat'), archive: $('#archive'), chatList: $('#chatList'),
+      modelSelect: $('#modelSelect'), routeBadge: $('#routeBadge'),
+      sessionTitle: $('#sessionTitle'), sessionSubtitle: $('#sessionSubtitle'),
+      connectionStatus: $('#connectionStatus'), toast: $('#toast')
+    };
+
+    function uid(prefix) {
+      const random = crypto.getRandomValues(new Uint32Array(2));
+      return prefix + '-' + Date.now().toString(36) + '-' + random[0].toString(36) + random[1].toString(36);
+    }
+
+    function routeById(id) {
+      return CONFIG.MODELS.find(model => model.id === id) || CONFIG.MODELS[0];
+    }
+
+    function cleanText(value, max = 12000) {
+      if (typeof value !== 'string') return '';
+      return value.replace(/\u0000/g, '').slice(0, max);
+    }
+
+    function safeLoad() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY) || 'null');
+        if (!parsed || parsed.version !== CONFIG.STORAGE_SCHEMA_VERSION || !Array.isArray(parsed.conversations)) return [];
+        return parsed.conversations.map(item => ({
+          id: cleanText(item.id, 120) || uid('chat'),
+          title: cleanText(item.title, 80) || '이전 대화',
+          route: routeById(item.route).id,
+          createdAt: Number(item.createdAt) || Date.now(),
+          updatedAt: Number(item.updatedAt) || Date.now(),
+          messages: Array.isArray(item.messages) ? item.messages.slice(-300).map(message => ({
+            role: message.role === 'user' ? 'user' : 'assistant',
+            text: cleanText(message.text),
+            at: Number(message.at) || Date.now()
+          })).filter(message => message.text) : []
+        })).slice(0, 100);
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function save() {
+      const payload = { version: CONFIG.STORAGE_SCHEMA_VERSION, conversations: state.conversations.slice(0, 100) };
+      try { localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(payload)); }
+      catch (_) { showToast('브라우저 저장 공간이 부족해 기록을 저장하지 못했습니다.'); }
+    }
+
+    function activeConversation() {
+      return state.conversations.find(item => item.id === state.activeId) || null;
+    }
+
+    function addMessage(role, text) {
+      const conversation = activeConversation();
+      const safeText = cleanText(text);
+      if (!conversation || !safeText) return;
+
+      const last = conversation.messages[conversation.messages.length - 1];
+      if (last && last.role === role && last.text === safeText && Date.now() - last.at < 1500) return;
+
+      conversation.messages.push({ role, text: safeText, at: Date.now() });
+      conversation.messages = conversation.messages.slice(-300);
+      conversation.updatedAt = Date.now();
+      if (role === 'user' && /^새 대화$/.test(conversation.title)) {
+        conversation.title = safeText.replace(/\s+/g, ' ').slice(0, 34) || '새 대화';
+      }
+      save();
+      renderConversationList();
+      updateHeader(conversation);
+    }
+
+    function formatDate(timestamp) {
+      try {
+        return new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(timestamp);
+      } catch (_) { return ''; }
+    }
+
+    function setStatus(kind, label) {
+      elements.connectionStatus.replaceChildren();
+      const dot = document.createElement('span');
+      dot.className = 'status-dot' + (kind ? ' ' + kind : '');
+      elements.connectionStatus.append(dot, document.createTextNode(label));
+    }
+
+    function showToast(message) {
+      elements.toast.textContent = cleanText(message, 240);
+      elements.toast.classList.add('visible');
+      clearTimeout(state.toastTimer);
+      state.toastTimer = setTimeout(() => elements.toast.classList.remove('visible'), 3200);
+    }
+
+    function populateModelSelect() {
+      elements.modelSelect.replaceChildren(...CONFIG.MODELS.map(model => {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = model.label;
+        return option;
+      }));
+    }
+
+    function updateHeader(conversation) {
+      const model = routeById(conversation ? conversation.route : 'auto');
+      elements.modelSelect.value = model.id;
+      elements.routeBadge.textContent = '연결 대상 · ' + model.label;
+      elements.sessionTitle.textContent = conversation ? conversation.title : '새 대화';
+      elements.sessionSubtitle.textContent = conversation
+        ? model.target + ' · ' + (conversation.messages.length ? '로컬 기록 ' + conversation.messages.length + '개' : '새 보안 세션')
+        : '새 보안 세션을 준비합니다';
+    }
+
+    function renderConversationList() {
+      const sorted = [...state.conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+      if (!sorted.length) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding:18px 10px;color:var(--quiet);font-size:12px;line-height:1.55;text-align:center';
+        empty.textContent = '아직 저장된 대화가 없습니다.';
+        elements.chatList.replaceChildren(empty);
+        return;
+      }
+
+      elements.chatList.replaceChildren(...sorted.map(conversation => {
+        const item = document.createElement('div');
+        item.className = 'chat-item';
+        item.setAttribute('role', 'button');
+        item.setAttribute('tabindex', '0');
+        item.setAttribute('aria-current', String(conversation.id === state.activeId));
+
+        const main = document.createElement('div');
+        main.className = 'chat-main';
+        const title = document.createElement('div');
+        title.className = 'chat-title';
+        title.textContent = conversation.title;
+        const meta = document.createElement('div');
+        meta.className = 'chat-meta';
+        meta.textContent = routeById(conversation.route).label + ' · ' + formatDate(conversation.updatedAt);
+        main.append(title, meta);
+
+        const menu = document.createElement('button');
+        menu.type = 'button';
+        menu.className = 'item-menu';
+        menu.setAttribute('aria-label', conversation.title + ' 메뉴');
+        menu.textContent = '•••';
+        menu.addEventListener('click', event => {
+          event.stopPropagation();
+          const action = prompt('이름 변경은 새 이름을 입력하세요. 삭제하려면 DELETE를 입력하세요.', conversation.title);
+          if (action === null) return;
+          if (action === 'DELETE') deleteConversation(conversation.id);
+          else if (action.trim()) {
+            conversation.title = cleanText(action.trim(), 80);
+            conversation.updatedAt = Date.now();
+            save(); renderConversationList(); updateHeader(activeConversation());
+          }
+        });
+
+        const open = () => openArchive(conversation.id);
+        item.addEventListener('click', open);
+        item.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+        item.append(main, menu);
+        return item;
+      }));
+    }
+
+    function renderArchive(conversation) {
+      const view = document.createElement('div');
+      view.className = 'archive-view';
+      const note = document.createElement('div');
+      note.className = 'archive-note';
+      note.textContent = '읽기 전용 로컬 기록입니다. 보안을 위해 Direct Line token은 저장하지 않으므로 이 기록은 새 AI 세션의 문맥으로 자동 전달되지 않습니다.';
+      view.append(note);
+
+      if (!conversation.messages.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        const card = document.createElement('div');
+        card.className = 'empty-card';
+        const heading = document.createElement('h2'); heading.textContent = '저장된 메시지가 없습니다';
+        const copy = document.createElement('p'); copy.textContent = '새 대화를 시작해 SchoolAI와 이야기해 보세요.';
+        const button = document.createElement('button'); button.className = 'primary-button'; button.type = 'button'; button.textContent = '새 대화 시작'; button.addEventListener('click', () => createConversation(conversation.route));
+        card.append(heading, copy, button); empty.append(card); view.append(empty);
+      } else {
+        conversation.messages.forEach(message => {
+          const row = document.createElement('article');
+          row.className = 'archive-message ' + message.role;
+          const role = document.createElement('div');
+          role.className = 'archive-role'; role.textContent = message.role === 'user' ? '나' : CONFIG.SERVICE_NAME;
+          const bubble = document.createElement('div');
+          bubble.className = 'archive-bubble'; bubble.textContent = message.text;
+          row.append(role, bubble); view.append(row);
+        });
+        const action = document.createElement('div');
+        action.style.cssText = 'max-width:760px;margin:8px auto 40px;text-align:center';
+        const button = document.createElement('button');
+        button.className = 'secondary-button'; button.type = 'button'; button.textContent = '같은 연결 대상으로 새 대화';
+        button.addEventListener('click', () => createConversation(conversation.route));
+        action.append(button); view.append(action);
+      }
+
+      elements.archive.replaceChildren(view);
+      elements.archive.hidden = false;
+      elements.webchat.hidden = true;
+    }
+
+    function endConnection() {
+      state.connectionSerial += 1;
+      if (state.directLine && typeof state.directLine.end === 'function') {
+        try { state.directLine.end(); } catch (_) {}
+      }
+      state.directLine = null;
+      elements.webchat.replaceChildren();
+    }
+
+    function openArchive(id) {
+      const conversation = state.conversations.find(item => item.id === id);
+      if (!conversation) return;
+      endConnection();
+      state.activeId = id;
+      updateHeader(conversation);
+      renderConversationList();
+      renderArchive(conversation);
+      setStatus('', '로컬 기록 보기');
+      document.body.classList.remove('sidebar-open');
+    }
+
+    function deleteConversation(id) {
+      const conversation = state.conversations.find(item => item.id === id);
+      if (!conversation || !confirm('“' + conversation.title + '” 대화를 이 브라우저에서 삭제할까요?')) return;
+      const wasActive = state.activeId === id;
+      state.conversations = state.conversations.filter(item => item.id !== id);
+      save(); renderConversationList();
+      if (wasActive) createConversation('auto');
+    }
+
+    function createConversation(routeId) {
+      const conversation = {
+        id: uid('chat'), title: '새 대화', route: routeById(routeId).id,
+        createdAt: Date.now(), updatedAt: Date.now(), messages: []
+      };
+      state.conversations.unshift(conversation);
+      state.activeId = conversation.id;
+      save(); renderConversationList(); updateHeader(conversation);
+      document.body.classList.remove('sidebar-open');
+      connect(conversation);
+    }
+
+    function showState(title, message, actionLabel, action) {
+      elements.archive.hidden = true;
+      elements.webchat.hidden = false;
+      elements.webchat.replaceChildren();
+      const panel = document.createElement('div'); panel.className = 'state-panel';
+      const card = document.createElement('div'); card.className = 'state-card';
+      const orb = document.createElement('div'); orb.className = 'orb'; orb.textContent = 'AI';
+      const heading = document.createElement('h2'); heading.textContent = title;
+      const copy = document.createElement('p'); copy.textContent = message;
+      card.append(orb, heading, copy);
+      if (actionLabel && action) {
+        const button = document.createElement('button'); button.className = 'primary-button'; button.type = 'button'; button.textContent = actionLabel; button.addEventListener('click', action); card.append(button);
+      }
+      panel.append(card); elements.webchat.append(panel);
+    }
+
+    async function requestToken(routeId) {
+      if (/YOUR-FUNCTION-APP|강사-function-app/.test(CONFIG.TOKEN_ENDPOINT)) throw new Error('CONFIG_REQUIRED');
+      const response = await fetch(CONFIG.TOKEN_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        cache: 'no-store',
+        referrerPolicy: 'strict-origin-when-cross-origin',
+        body: JSON.stringify({ route: routeId })
+      });
+      if (!response.ok) throw new Error('TOKEN_' + response.status);
+      const result = await response.json();
+      if (!result || typeof result.token !== 'string' || result.token.length < 20) throw new Error('INVALID_TOKEN');
+      return result;
+    }
+
+    async function connect(conversation) {
+      endConnection();
+      const serial = state.connectionSerial;
+      const model = routeById(conversation.route);
+      elements.archive.hidden = true;
+      elements.webchat.hidden = false;
+      showState('안전하게 연결하는 중', model.target + '에 사용할 단기 대화 token을 요청하고 있습니다.');
+      setStatus('', '연결 중');
+
+      try {
+        const tokenInfo = await requestToken(model.id);
+        if (serial !== state.connectionSerial) return;
+
+        const directLine = window.WebChat.createDirectLine({ token: tokenInfo.token });
+        state.directLine = directLine;
+
+        const store = window.WebChat.createStore({}, () => next => action => {
+          if (action.type === 'DIRECT_LINE/CONNECT_FULFILLED') {
+            setStatus('online', '보안 연결됨');
+            elements.sessionSubtitle.textContent = model.target + ' · 활성 세션';
+            store.dispatch({
+              type: 'WEB_CHAT/SEND_EVENT',
+              payload: {
+                name: 'pvaSetContext',
+                value: { RequestedRoute: model.id, RequestedRouteLabel: model.label }
+              }
+            });
+          }
+          if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
+            const activity = action.payload && action.payload.activity;
+            if (activity && activity.from && activity.from.role === 'bot' && activity.type === 'message' && activity.text) {
+              addMessage('assistant', activity.text);
+            }
+          }
+          if (action.type === 'WEB_CHAT/SEND_MESSAGE' && action.payload && action.payload.text) {
+            addMessage('user', action.payload.text);
+          }
+          if (action.type === 'DIRECT_LINE/CONNECT_REJECTED') setStatus('error', '연결 실패');
+          return next(action);
+        });
+
+        elements.webchat.replaceChildren();
+        window.WebChat.renderWebChat({
+          directLine,
+          store,
+          locale: 'ko-KR',
+          userID: uid('web'),
+          username: '수강생',
+          styleOptions: {
+            backgroundColor: 'transparent',
+            bubbleBackground: 'rgba(255,255,255,.88)',
+            bubbleBorderColor: 'rgba(27,38,55,.10)',
+            bubbleBorderRadius: 15,
+            bubbleFromUserBackground: 'rgba(79,106,240,.11)',
+            bubbleFromUserBorderColor: 'rgba(79,106,240,.15)',
+            bubbleFromUserTextColor: '#28345c',
+            bubbleMaxWidth: 680,
+            botAvatarBackgroundColor: '#172033',
+            botAvatarInitials: 'S',
+            hideUploadButton: false,
+            primaryFont: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            sendBoxBackground: 'rgba(255,255,255,.94)',
+            sendBoxBorderTop: 'solid 1px rgba(27,38,55,.10)',
+            sendBoxButtonColor: '#4f6af0',
+            sendBoxButtonColorOnHover: '#4057d8',
+            sendBoxHeight: 58,
+            sendBoxTextColor: '#172033',
+            subtle: '#687386',
+            timestampColor: '#8e98a8'
+          }
+        }, elements.webchat);
+        elements.webchat.querySelector('*')?.focus?.();
+      } catch (error) {
+        if (serial !== state.connectionSerial) return;
+        setStatus('error', '연결 실패');
+        const configurationProblem = error.message === 'CONFIG_REQUIRED';
+        showState(
+          configurationProblem ? '배포 설정이 필요합니다' : '연결하지 못했습니다',
+          configurationProblem
+            ? 'index.html 상단 CONFIG의 TOKEN_ENDPOINT를 배포한 Azure Function 주소로 바꿔 주세요.'
+            : '잠시 후 다시 시도해 주세요. 계속 실패하면 Azure Function, CORS, Web channel security 설정을 확인하세요.',
+          '다시 시도', () => connect(activeConversation())
+        );
+      }
+    }
+
+    function changeModel(nextRoute) {
+      const current = activeConversation();
+      if (!current) return createConversation(nextRoute);
+      if (current.route === nextRoute) return;
+
+      if (current.messages.length && !confirm('모델을 바꾸면 보안을 위해 새 AI 세션이 시작됩니다. 현재 대화는 로컬 기록에 남습니다. 계속할까요?')) {
+        elements.modelSelect.value = current.route;
+        return;
+      }
+
+      if (current.messages.length) createConversation(nextRoute);
+      else {
+        current.route = routeById(nextRoute).id;
+        current.updatedAt = Date.now();
+        save(); renderConversationList(); updateHeader(current); connect(current);
+      }
+    }
+
+    $('#newChatButton').addEventListener('click', () => createConversation(elements.modelSelect.value || 'auto'));
+    elements.modelSelect.addEventListener('change', event => changeModel(event.target.value));
+    $('#mobileMenuButton').addEventListener('click', () => document.body.classList.add('sidebar-open'));
+    $('#sidebarScrim').addEventListener('click', () => document.body.classList.remove('sidebar-open'));
+    $('#clearHistoryButton').addEventListener('click', () => {
+      if (!state.conversations.length || !confirm('이 브라우저에 저장된 모든 SchoolAI 대화 기록을 삭제할까요? 복구할 수 없습니다.')) return;
+      endConnection(); state.conversations = []; state.activeId = null; localStorage.removeItem(CONFIG.STORAGE_KEY); renderConversationList(); createConversation('auto');
+    });
+
+    window.addEventListener('online', () => { showToast('인터넷 연결이 복구되었습니다.'); if (activeConversation() && !state.directLine) connect(activeConversation()); });
+    window.addEventListener('offline', () => setStatus('error', '오프라인'));
+
+    document.title = CONFIG.SERVICE_NAME;
+    $('#brandName').textContent = CONFIG.SERVICE_NAME;
+    populateModelSelect();
+    state.conversations = safeLoad();
+    renderConversationList();
+    createConversation('auto');
+  </script>
+</body>
+</html>
