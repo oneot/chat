@@ -309,6 +309,24 @@
     .archive-bubble { display: inline-block; max-width: 86%; padding: 11px 14px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.82); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.58; }
     .archive-message.user { text-align: right; }
     .archive-message.user .archive-bubble { color: white; border-color: #1b5cdb; background: var(--accent); text-align: left; }
+    .continue-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      max-width: 760px;
+      margin: 8px auto 40px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255,255,255,.74);
+    }
+    .continue-copy { min-width: 0; }
+    .continue-copy strong { display: block; color: var(--ink); font-size: 13px; }
+    .continue-copy span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .continue-actions { display: flex; gap: 8px; align-items: center; }
+    .continue-actions .model-select { max-width: 190px; }
+    .continue-actions .primary-button { margin-top: 0; white-space: nowrap; }
 
     .statusbar {
       min-height: 35px;
@@ -369,6 +387,10 @@
       .topbar { padding-inline: 11px; }
       .model-select { max-width: 202px; }
       .privacy-note { max-width: 54vw; }
+      .continue-panel { grid-template-columns: 1fr; }
+      .continue-actions { align-items: stretch; flex-direction: column; }
+      .continue-actions .model-select { width: 100%; max-width: none; }
+      .continue-actions .primary-button { width: 100%; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -736,6 +758,8 @@
       SERVICE_NAME: 'SchoolAI',
       STORAGE_KEY: 'schoolai.conversations',
       STORAGE_SCHEMA_VERSION: 1,
+      CONTEXT_MAX_MESSAGES: 40,
+      CONTEXT_MAX_CHARS: 32000,
       DEBUG: false,
       MODELS: Object.freeze([
         { id: 'auto', label: 'Auto', target: 'SchoolAI-Orchestrator' },
@@ -786,10 +810,20 @@
           route: routeById(item.route).id,
           createdAt: Number(item.createdAt) || Date.now(),
           updatedAt: Number(item.updatedAt) || Date.now(),
+          contextPending: Boolean(item.contextPending),
+          contextMeta: item.contextMeta && typeof item.contextMeta === 'object' ? {
+            sourceId: cleanText(item.contextMeta.sourceId, 120),
+            sourceTitle: cleanText(item.contextMeta.sourceTitle, 80),
+            sourceRoute: routeById(item.contextMeta.sourceRoute).id,
+            messageCount: Math.max(0, Number(item.contextMeta.messageCount) || 0),
+            truncated: Boolean(item.contextMeta.truncated),
+            transferredAt: Number(item.contextMeta.transferredAt) || 0
+          } : null,
           messages: Array.isArray(item.messages) ? item.messages.slice(-300).map(message => ({
             role: message.role === 'user' ? 'user' : 'assistant',
             text: cleanText(message.text),
-            at: Number(message.at) || Date.now()
+            at: Number(message.at) || Date.now(),
+            carried: Boolean(message.carried)
           })).filter(message => message.text) : []
         })).slice(0, 100);
       } catch (_) {
@@ -815,7 +849,7 @@
       const last = conversation.messages[conversation.messages.length - 1];
       if (last && last.role === role && last.text === safeText && Date.now() - last.at < 1500) return;
 
-      conversation.messages.push({ role, text: safeText, at: Date.now() });
+      conversation.messages.push({ role, text: safeText, at: Date.now(), carried: false });
       conversation.messages = conversation.messages.slice(-300);
       conversation.updatedAt = Date.now();
       if (role === 'user' && /^새 대화$/.test(conversation.title)) {
@@ -824,6 +858,88 @@
       save();
       renderConversationList();
       updateHeader(conversation);
+    }
+
+    function selectRecentContext(messages) {
+      const selected = [];
+      let usedChars = 0;
+      const source = Array.isArray(messages) ? messages : [];
+
+      for (let index = source.length - 1; index >= 0 && selected.length < CONFIG.CONTEXT_MAX_MESSAGES; index -= 1) {
+        const message = source[index];
+        const text = cleanText(message && message.text);
+        if (!text) continue;
+        const labelLength = message.role === 'user' ? 5 : CONFIG.SERVICE_NAME.length + 3;
+        const remaining = CONFIG.CONTEXT_MAX_CHARS - usedChars - labelLength;
+        if (remaining <= 0) break;
+        const clipped = text.length > remaining ? text.slice(text.length - remaining) : text;
+        selected.unshift({
+          role: message.role === 'user' ? 'user' : 'assistant',
+          text: clipped,
+          at: Number(message.at) || Date.now(),
+          carried: true
+        });
+        usedChars += clipped.length + labelLength;
+        if (clipped.length < text.length) break;
+      }
+
+      return {
+        messages: selected,
+        truncated: selected.length < source.filter(message => message && message.text).length
+      };
+    }
+
+    function buildContextPrompt(conversation) {
+      const carried = conversation.messages.filter(message => message.carried);
+      if (!carried.length) return '';
+      const transcript = carried.map(message => {
+        const role = message.role === 'user' ? '사용자' : '이전 AI';
+        return role + ': ' + message.text;
+      }).join('\n\n');
+      const sourceLabel = conversation.contextMeta && conversation.contextMeta.sourceTitle
+        ? conversation.contextMeta.sourceTitle
+        : '이전 대화';
+
+      return [
+        '[SchoolAI 이전 대화 원문]',
+        '다음은 사용자가 브라우저에 저장해 둔 “' + sourceLabel + '” 대화의 최근 원문입니다.',
+        '이 내용을 현재 대화의 앞선 문맥으로 정확히 이해하세요. 원문에 없는 사실은 추측하지 마세요.',
+        '',
+        transcript,
+        '',
+        '[처리 지시]',
+        '이전 문맥을 반영했으면 “이전 대화를 불러왔습니다. 이어서 말씀해 주세요.”라고만 짧게 답하세요.'
+      ].join('\n');
+    }
+
+    function transferStoredContext(directLine, conversation, webUserId) {
+      const contextPrompt = buildContextPrompt(conversation);
+      if (!conversation.contextPending || !contextPrompt || !directLine || typeof directLine.postActivity !== 'function') return;
+
+      let settled = false;
+      directLine.postActivity({
+        type: 'message',
+        from: { id: webUserId, name: '수강생' },
+        text: contextPrompt,
+        channelData: { schoolAI: { kind: 'conversation-context', sourceId: conversation.contextMeta?.sourceId || '' } }
+      }).subscribe({
+        next: activityId => {
+          if (settled || !activityId) return;
+          settled = true;
+          conversation.contextPending = false;
+          if (conversation.contextMeta) conversation.contextMeta.transferredAt = Date.now();
+          conversation.updatedAt = Date.now();
+          save();
+          renderConversationList();
+          updateHeader(conversation);
+          showToast('이전 대화 원문을 새 모델에 전달했습니다.');
+        },
+        error: () => {
+          if (settled) return;
+          settled = true;
+          showToast('이전 대화 전달에 실패했습니다. 다시 연결해 주세요.');
+        }
+      });
     }
 
     function formatDate(timestamp) {
@@ -861,7 +977,9 @@
       elements.routeBadge.textContent = '연결 대상 · ' + model.label;
       elements.sessionTitle.textContent = conversation ? conversation.title : '새 대화';
       elements.sessionSubtitle.textContent = conversation
-        ? model.target + ' · ' + (conversation.messages.length ? '로컬 기록 ' + conversation.messages.length + '개' : '새 보안 세션')
+        ? model.target + ' · ' + (conversation.contextPending
+          ? '이전 문맥 ' + (conversation.contextMeta?.messageCount || 0) + '개 전달 준비'
+          : conversation.messages.length ? '로컬 기록 ' + conversation.messages.length + '개' : '새 보안 세션')
         : '새 보안 세션을 준비합니다';
     }
 
@@ -922,7 +1040,7 @@
       view.className = 'archive-view';
       const note = document.createElement('div');
       note.className = 'archive-note';
-      note.textContent = '읽기 전용 로컬 기록입니다. 보안을 위해 Direct Line token은 저장하지 않으므로 이 기록은 새 AI 세션의 문맥으로 자동 전달되지 않습니다.';
+      note.textContent = '이 기록은 이 브라우저에만 저장됩니다. 아래에서 모델을 선택하면 최근 대화 원문을 새 단기 세션에 전달해 그대로 이어갈 수 있습니다. Direct Line token은 저장하지 않습니다.';
       view.append(note);
 
       if (!conversation.messages.length) {
@@ -945,11 +1063,31 @@
           row.append(role, bubble); view.append(row);
         });
         const action = document.createElement('div');
-        action.style.cssText = 'max-width:760px;margin:8px auto 40px;text-align:center';
+        action.className = 'continue-panel';
+        const actionCopy = document.createElement('div');
+        actionCopy.className = 'continue-copy';
+        const actionTitle = document.createElement('strong');
+        actionTitle.textContent = '이 대화를 이어서 작업하기';
+        const actionDescription = document.createElement('span');
+        actionDescription.textContent = '최근 원문 최대 ' + CONFIG.CONTEXT_MAX_MESSAGES + '개를 선택한 모델의 새 세션에 전달합니다.';
+        actionCopy.append(actionTitle, actionDescription);
+        const actionControls = document.createElement('div');
+        actionControls.className = 'continue-actions';
+        const routeSelect = document.createElement('select');
+        routeSelect.className = 'model-select';
+        routeSelect.setAttribute('aria-label', '이전 대화를 이어갈 모델 선택');
+        routeSelect.append(...CONFIG.MODELS.map(model => {
+          const option = document.createElement('option');
+          option.value = model.id;
+          option.textContent = model.label;
+          option.selected = model.id === conversation.route;
+          return option;
+        }));
         const button = document.createElement('button');
-        button.className = 'secondary-button'; button.type = 'button'; button.textContent = '같은 연결 대상으로 새 대화';
-        button.addEventListener('click', () => createConversation(conversation.route));
-        action.append(button); view.append(action);
+        button.className = 'primary-button'; button.type = 'button'; button.textContent = '이어서 대화';
+        button.addEventListener('click', () => continueConversation(conversation.id, routeSelect.value));
+        actionControls.append(routeSelect, button);
+        action.append(actionCopy, actionControls); view.append(action);
       }
 
       elements.archive.replaceChildren(view);
@@ -987,16 +1125,43 @@
       if (wasActive) createConversation('auto');
     }
 
-    function createConversation(routeId) {
+    function createConversation(routeId, options = {}) {
       const conversation = {
-        id: uid('chat'), title: '새 대화', route: routeById(routeId).id,
-        createdAt: Date.now(), updatedAt: Date.now(), messages: []
+        id: uid('chat'),
+        title: cleanText(options.title, 80) || '새 대화',
+        route: routeById(routeId).id,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        messages: Array.isArray(options.messages) ? options.messages : [],
+        contextPending: Boolean(options.contextPending),
+        contextMeta: options.contextMeta || null
       };
       state.conversations.unshift(conversation);
       state.activeId = conversation.id;
       save(); renderConversationList(); updateHeader(conversation);
       document.body.classList.remove('sidebar-open');
       connect(conversation);
+    }
+
+    function continueConversation(sourceId, routeId) {
+      const source = state.conversations.find(item => item.id === sourceId);
+      if (!source || !source.messages.length) return createConversation(routeId);
+      const context = selectRecentContext(source.messages);
+      if (!context.messages.length) return createConversation(routeId);
+
+      createConversation(routeId, {
+        title: source.title,
+        messages: context.messages,
+        contextPending: true,
+        contextMeta: {
+          sourceId: source.id,
+          sourceTitle: source.title,
+          sourceRoute: source.route,
+          messageCount: context.messages.length,
+          truncated: context.truncated,
+          transferredAt: 0
+        }
+      });
     }
 
     function showState(title, message, actionLabel, action) {
@@ -1044,6 +1209,7 @@
         if (serial !== state.connectionSerial) return;
 
         const directLine = window.WebChat.createDirectLine({ token: tokenInfo.token });
+        const webUserId = uid('web');
         state.directLine = directLine;
 
         const store = window.WebChat.createStore({}, () => next => action => {
@@ -1057,6 +1223,11 @@
                 value: { RequestedRoute: model.id, RequestedRouteLabel: model.label }
               }
             });
+            if (conversation.contextPending) {
+              setTimeout(() => {
+                if (serial === state.connectionSerial) transferStoredContext(directLine, conversation, webUserId);
+              }, 250);
+            }
           }
           if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
             const activity = action.payload && action.payload.activity;
@@ -1084,8 +1255,12 @@
           directLine,
           store,
           locale: 'ko-KR',
-          userID: uid('web'),
+          userID: webUserId,
           username: '수강생',
+          activityMiddleware: () => next => card => {
+            const schoolAIData = card?.activity?.channelData?.schoolAI;
+            return schoolAIData?.kind === 'conversation-context' ? false : next(card);
+          },
           styleOptions: {
             backgroundColor: 'transparent',
             bubbleBackground: 'rgba(255,255,255,.88)',
@@ -1129,12 +1304,12 @@
       if (!current) return createConversation(nextRoute);
       if (current.route === nextRoute) return;
 
-      if (current.messages.length && !confirm('모델을 바꾸면 보안을 위해 새 AI 세션이 시작됩니다. 현재 대화는 로컬 기록에 남습니다. 계속할까요?')) {
+      if (current.messages.length && !confirm('선택한 모델의 새 세션을 만들고, 현재 대화의 최근 원문을 문맥으로 전달할까요?')) {
         elements.modelSelect.value = current.route;
         return;
       }
 
-      if (current.messages.length) createConversation(nextRoute);
+      if (current.messages.length) continueConversation(current.id, nextRoute);
       else {
         current.route = routeById(nextRoute).id;
         current.updatedAt = Date.now();
@@ -1159,7 +1334,16 @@
     populateModelSelect();
     state.conversations = safeLoad();
     renderConversationList();
-    createConversation('auto');
+    if (state.conversations.length) {
+      const latest = [...state.conversations].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+      state.activeId = latest.id;
+      updateHeader(latest);
+      renderConversationList();
+      renderArchive(latest);
+      setStatus('', '로컬 기록 보기');
+    } else {
+      createConversation('auto');
+    }
   </script>
 </body>
 </html>
