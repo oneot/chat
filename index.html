@@ -2023,15 +2023,20 @@
       const current = activeConversation();
       if (!current) return createConversation(nextRoute);
       if (current.route === nextRoute) return;
+      const hasUserInput = hasSubmittedUserMessage(current);
 
-      if (current.messages.length && !confirm('선택한 모델의 새 세션을 만들고, 현재 대화의 최근 원문을 문맥으로 전달할까요?')) {
+      if (hasUserInput && !confirm('선택한 모델의 새 세션을 만들고, 현재 대화의 최근 원문을 문맥으로 전달할까요?')) {
         syncModelPicker(current.route);
         return;
       }
 
-      if (current.messages.length) continueConversation(current.id, nextRoute);
+      if (hasUserInput) continueConversation(current.id, nextRoute);
       else {
+        current.title = '새 대화';
         current.route = routeById(nextRoute).id;
+        current.messages = [];
+        current.contextPending = false;
+        current.contextMeta = null;
         current.updatedAt = Date.now();
         save(); renderConversationList(); updateHeader(current); connect(current);
       }
