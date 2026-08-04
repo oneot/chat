@@ -764,28 +764,27 @@
       border-radius: 18px !important;
     }
 
-    /* Keep Web Chat typing feedback aligned with the centered conversation. */
-    #webchat .webchat__typing-indicator {
-      width: 42px !important;
-      min-width: 42px !important;
-      height: 22px !important;
-      margin-left: max(20px, calc((100% - 820px) / 2)) !important;
-      padding: 0 !important;
-      border: 0 !important;
-      border-radius: 999px !important;
-      background: transparent !important;
-      box-shadow: none !important;
-      overflow: visible !important;
+    /* The app owns response feedback so it also appears before the first greeting. */
+    #webchat .webchat__typing-indicator { display: none !important; }
+
+    .response-loader {
+      position: absolute;
+      z-index: 7;
+      left: 50%;
+      bottom: 140px;
+      width: min(820px, calc(100% - 40px));
+      height: 24px;
+      display: flex;
+      align-items: center;
+      pointer-events: none;
+      transform: translateX(-50%);
     }
 
-    #webchat .webchat__typing-indicator > * { display: none !important; }
+    .response-loader[hidden] { display: none; }
 
-    #webchat .webchat__typing-indicator::after {
-      content: '';
-      display: block;
+    .response-loader-dots {
       width: 34px;
       height: 10px;
-      margin: 6px 0;
       background:
         radial-gradient(circle at 5px 50%, #a78bfa 0 3px, transparent 3.5px),
         radial-gradient(circle at 17px 50%, #60a5fa 0 3px, transparent 3.5px),
@@ -1076,7 +1075,7 @@
 
     @media (max-width: 780px) {
       #webchat .webchat__basic-transcript__activity { width: calc(100% - 24px); }
-      #webchat .webchat__typing-indicator { margin-left: 12px !important; }
+      .response-loader { bottom: 126px; width: calc(100% - 24px); }
       #webchat .webchat__send-box { width: calc(100% - 20px); margin-bottom: 10px; border-radius: 23px !important; }
       .composer-model-layer { bottom: 10px; width: calc(100% - 20px); }
       .model-picker { right: 54px; }
@@ -1119,6 +1118,9 @@
       <section class="workspace" id="workspace" aria-live="polite">
         <div id="webchat" role="main" aria-label="SchoolAI 채팅"></div>
         <div id="archive" hidden></div>
+        <div class="response-loader" id="responseLoader" role="status" aria-live="polite" aria-label="SchoolAI가 답변을 작성하고 있습니다" hidden>
+          <span class="response-loader-dots" aria-hidden="true"></span>
+        </div>
         <div class="composer-model-layer" id="composerModelLayer" hidden>
           <div class="model-picker" id="modelPicker">
             <button class="model-picker-button" id="modelPickerButton" type="button" aria-haspopup="listbox" aria-expanded="false">
@@ -1182,7 +1184,7 @@
       composerModelLayer: $('#composerModelLayer'), modelPickerButton: $('#modelPickerButton'),
       modelPickerLabel: $('#modelPickerLabel'), modelPickerMenu: $('#modelPickerMenu'),
       sessionTitle: $('#sessionTitle'), sessionSubtitle: $('#sessionSubtitle'),
-      connectionStatus: $('#connectionStatus'), toast: $('#toast')
+      connectionStatus: $('#connectionStatus'), responseLoader: $('#responseLoader'), toast: $('#toast')
     };
 
     function uid(prefix) {
@@ -1352,6 +1354,10 @@
       const dot = document.createElement('span');
       dot.className = 'status-dot' + (kind ? ' ' + kind : '');
       elements.connectionStatus.append(dot, document.createTextNode(label));
+    }
+
+    function setResponseLoading(isLoading) {
+      elements.responseLoader.hidden = !isLoading;
     }
 
     function showToast(message) {
@@ -1560,6 +1566,7 @@
 
     function endConnection() {
       state.connectionSerial += 1;
+      setResponseLoading(false);
       if (state.directLine && typeof state.directLine.end === 'function') {
         try { state.directLine.end(); } catch (_) {}
       }
@@ -1681,6 +1688,7 @@
         const store = window.WebChat.createStore({}, () => next => action => {
           if (action.type === 'DIRECT_LINE/CONNECT_FULFILLED') {
             setStatus('online', '보안 연결됨');
+            setResponseLoading(true);
             elements.composerModelLayer.hidden = false;
             elements.sessionSubtitle.textContent = model.target + ' · 활성 세션';
             store.dispatch({
@@ -1698,14 +1706,20 @@
           }
           if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
             const activity = action.payload && action.payload.activity;
-            if (activity && activity.from && activity.from.role === 'bot' && activity.type === 'message' && activity.text) {
-              addMessage('assistant', activity.text);
+            if (activity && activity.from && activity.from.role === 'bot' && activity.type === 'message') {
+              setResponseLoading(false);
+              if (activity.text) addMessage('assistant', activity.text);
             }
           }
           if (action.type === 'WEB_CHAT/SEND_MESSAGE' && action.payload && action.payload.text) {
+            setResponseLoading(true);
             addMessage('user', action.payload.text);
           }
-          if (action.type === 'DIRECT_LINE/CONNECT_REJECTED') setStatus('error', '연결 실패');
+          if (action.type === 'WEB_CHAT/SEND_FILES') setResponseLoading(true);
+          if (action.type === 'DIRECT_LINE/CONNECT_REJECTED') {
+            setResponseLoading(false);
+            setStatus('error', '연결 실패');
+          }
           return next(action);
         });
 
@@ -1760,6 +1774,7 @@
         webChatMount.querySelector('*')?.focus?.();
       } catch (error) {
         if (serial !== state.connectionSerial) return;
+        setResponseLoading(false);
         setStatus('error', '연결 실패');
         const configurationProblem = error.message === 'CONFIG_REQUIRED';
         showState(
