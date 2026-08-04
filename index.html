@@ -182,19 +182,51 @@
 
     .sidebar-footer { padding: 12px 6px 2px; border-top: 1px solid var(--line); }
 
-    .clear-history {
-      width: 100%;
-      padding: 9px 8px;
-      border: 0;
-      border-radius: 10px;
-      color: var(--muted);
-      background: transparent;
-      text-align: left;
-      font-size: 12px;
-      cursor: pointer;
+    .history-notice {
+      margin: 0;
+      padding: 3px 6px 1px;
+      color: var(--quiet);
+      font-size: 10.5px;
+      line-height: 1.55;
+      word-break: keep-all;
     }
 
-    .clear-history:hover { color: var(--danger); background: rgba(198,61,73,.06); }
+    .delete-chat { color: var(--quiet); }
+    .delete-chat:hover { color: var(--danger); background: rgba(198,61,73,.07); }
+
+    .trash-icon {
+      position: relative;
+      width: 11px;
+      height: 12px;
+      border: 1.4px solid currentColor;
+      border-top: 0;
+      border-radius: 0 0 3px 3px;
+    }
+
+    .trash-icon::before {
+      content: '';
+      position: absolute;
+      left: -2px;
+      top: -4px;
+      width: 13px;
+      height: 1.4px;
+      border-radius: 2px;
+      background: currentColor;
+      box-shadow: 4px -2px 0 -0.2px currentColor;
+    }
+
+    .trash-icon::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 2px;
+      width: 1px;
+      height: 6px;
+      border-radius: 1px;
+      background: currentColor;
+      box-shadow: 3px 0 0 currentColor;
+      opacity: .7;
+    }
 
     .main {
       min-width: 0;
@@ -543,7 +575,6 @@
     .item-menu:hover { color: var(--ink); background: rgba(16, 24, 40, .055); }
 
     .sidebar-footer { padding: 10px 2px 0; }
-    .clear-history { padding: 9px 8px; border-radius: 9px; font-size: 11.5px; }
 
     .topbar {
       min-height: 61px;
@@ -1117,7 +1148,7 @@
       <div class="section-label">최근 대화</div>
       <div class="chat-list" id="chatList"></div>
       <div class="sidebar-footer">
-        <button class="clear-history" id="clearHistoryButton" type="button">이 브라우저의 전체 기록 삭제</button>
+        <p class="history-notice">대화기록은 브라우저에 저장되며, 브라우저·기기 변경 시 기존 대화를 복원하지 못할 수 있습니다.</p>
       </div>
     </aside>
 
@@ -1262,6 +1293,72 @@
       return state.conversations.find(item => item.id === state.activeId) || null;
     }
 
+    const TITLE_STOP_WORDS = new Set([
+      '안녕', '안녕하세요', '감사', '감사합니다', '고마워', '좋아', '좋아요', '네', '아니요',
+      '요청', '수정', '부분', '몇가지', '몇', '가지', '어떻게', '무엇', '뭐가', '뭐', '알려줘',
+      '해줘', '해주세요', '부탁', '도와줘', '도움', '지금', '그냥', '그리고', '그런데', '그래서',
+      '대한', '대해', '관련', '정도', '같은', '있는', '없는', '있습니다', '합니다', '할게', '할까요',
+      '주세요', '제가', '내가', '저는', '나는', '우리', '이것', '저것', '여기', '저기', 'schoolai'
+    ]);
+
+    function normalizeTitleToken(value) {
+      let token = cleanText(value, 60).toLowerCase().replace(/^[.+#-]+|[.+#-]+$/g, '');
+      if (!/[a-z0-9가-힣]/i.test(token)) return '';
+      if (/^[가-힣]+$/.test(token)) {
+        token = token.replace(/(에서는|으로는|에게서|부터는|까지는|이라는|에서|으로|에게|부터|까지|처럼|보다|이라|라고|하고|이며|은|는|이|가|을|를|의|에|로|와|과|도|만)$/u, '');
+      }
+      if (token.length < 2 || /^\d+$/.test(token) || TITLE_STOP_WORDS.has(token)) return '';
+      return token;
+    }
+
+    function deriveConversationTitle(messages) {
+      const recent = (Array.isArray(messages) ? messages : [])
+        .filter(message => message && cleanText(message.text))
+        .slice(-18);
+      if (!recent.some(message => message.role === 'user')) return '';
+
+      const latestContext = recent.slice(-8).map(message => cleanText(message.text)).join(' ');
+      const mentionsTitle = /(대화.{0,8}제목|제목.{0,8}대화|제목.{0,8}(맥락|자동|갱신|업데이트))/u.test(latestContext);
+      const mentionsDelete = /(휴지통|대화.{0,8}삭제|삭제.{0,8}대화)/u.test(latestContext);
+      const mentionsResumeDuplicate = /(두\s*번|중복).{0,18}(응답|말|대화)|(불러|이어|재개).{0,18}(두\s*번|중복)/u.test(latestContext);
+      if (mentionsTitle && mentionsDelete) return '대화 제목·삭제 관리';
+      if (mentionsResumeDuplicate && !mentionsTitle && !mentionsDelete) return '대화 재개 중복 응답';
+      if (mentionsTitle) return '대화 제목 자동 갱신';
+      if (mentionsDelete) return '대화 기록 삭제';
+
+      const scores = new Map();
+      recent.forEach((message, index) => {
+        if (message.role === 'assistant' && /이전 대화를 불러왔습니다/.test(message.text)) return;
+        const tokens = cleanText(message.text)
+          .replace(/https?:\/\/\S+/gi, ' ')
+          .replace(/[^\p{L}\p{N}.+#-]+/gu, ' ')
+          .split(/\s+/)
+          .map(normalizeTitleToken)
+          .filter(Boolean);
+        const counts = new Map();
+        tokens.forEach(token => counts.set(token, (counts.get(token) || 0) + 1));
+        counts.forEach((count, token) => {
+          const previous = scores.get(token) || { token, score: 0, last: 0 };
+          const roleWeight = message.role === 'user' ? 3 : 1;
+          const contextWeight = message.carried ? .6 : 1;
+          const recencyWeight = .7 + ((index + 1) / recent.length) * .8;
+          previous.score += roleWeight * contextWeight * recencyWeight * (1 + Math.min(count - 1, 2) * .5);
+          previous.last = index;
+          scores.set(token, previous);
+        });
+      });
+
+      const ranked = [...scores.values()].sort((a, b) => b.score - a.score || b.last - a.last || a.token.localeCompare(b.token, 'ko'));
+      if (!ranked.length) return '일반 대화';
+      return ranked.slice(0, 3).map(item => item.token).join(' · ').slice(0, 34);
+    }
+
+    function refreshConversationTitle(conversation) {
+      if (!conversation) return;
+      const title = deriveConversationTitle(conversation.messages);
+      if (title) conversation.title = title;
+    }
+
     function addMessage(role, text) {
       const conversation = activeConversation();
       const safeText = cleanText(text);
@@ -1273,9 +1370,7 @@
       conversation.messages.push({ role, text: safeText, at: Date.now(), carried: false });
       conversation.messages = conversation.messages.slice(-300);
       conversation.updatedAt = Date.now();
-      if (role === 'user' && /^새 대화$/.test(conversation.title)) {
-        conversation.title = safeText.replace(/\s+/g, ' ').slice(0, 34) || '새 대화';
-      }
+      refreshConversationTitle(conversation);
       save();
       renderConversationList();
       updateHeader(conversation);
@@ -1489,27 +1584,23 @@
         meta.textContent = routeById(conversation.route).label + ' · ' + formatDate(conversation.updatedAt);
         main.append(title, meta);
 
-        const menu = document.createElement('button');
-        menu.type = 'button';
-        menu.className = 'item-menu';
-        menu.setAttribute('aria-label', conversation.title + ' 메뉴');
-        menu.textContent = '•••';
-        menu.addEventListener('click', event => {
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'item-menu delete-chat';
+        deleteButton.setAttribute('aria-label', conversation.title + ' 대화 삭제');
+        const trashIcon = document.createElement('span');
+        trashIcon.className = 'trash-icon';
+        trashIcon.setAttribute('aria-hidden', 'true');
+        deleteButton.append(trashIcon);
+        deleteButton.addEventListener('click', event => {
           event.stopPropagation();
-          const action = prompt('이름 변경은 새 이름을 입력하세요. 삭제하려면 DELETE를 입력하세요.', conversation.title);
-          if (action === null) return;
-          if (action === 'DELETE') deleteConversation(conversation.id);
-          else if (action.trim()) {
-            conversation.title = cleanText(action.trim(), 80);
-            conversation.updatedAt = Date.now();
-            save(); renderConversationList(); updateHeader(activeConversation());
-          }
+          deleteConversation(conversation.id);
         });
 
         const open = () => openArchive(conversation.id);
         item.addEventListener('click', open);
         item.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
-        item.append(main, menu);
+        item.append(main, deleteButton);
         return item;
       }));
     }
@@ -1610,7 +1701,7 @@
 
     function deleteConversation(id) {
       const conversation = state.conversations.find(item => item.id === id);
-      if (!conversation || !confirm('“' + conversation.title + '” 대화를 이 브라우저에서 삭제할까요?')) return;
+      if (!conversation || !confirm('“' + conversation.title + '” 대화를 정말 삭제하시겠습니까?')) return;
       const wasActive = state.activeId === id;
       state.conversations = state.conversations.filter(item => item.id !== id);
       save(); renderConversationList();
@@ -1704,6 +1795,7 @@
         const directLine = window.WebChat.createDirectLine({ token: tokenInfo.token });
         const webUserId = uid('web');
         state.directLine = directLine;
+        let suppressFirstBotGreeting = Boolean(conversation.contextPending);
 
         const store = window.WebChat.createStore({}, () => next => action => {
           if (action.type === 'DIRECT_LINE/CONNECT_FULFILLED') {
@@ -1727,6 +1819,11 @@
           if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
             const activity = action.payload && action.payload.activity;
             if (activity && activity.from && activity.from.role === 'bot' && activity.type === 'message') {
+              if (suppressFirstBotGreeting) {
+                suppressFirstBotGreeting = false;
+                setResponseLoading(true);
+                return;
+              }
               setResponseLoading(false);
               if (activity.text) addMessage('assistant', activity.text);
             }
@@ -1834,10 +1931,6 @@
     document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModelPicker(); });
     $('#mobileMenuButton').addEventListener('click', () => document.body.classList.add('sidebar-open'));
     $('#sidebarScrim').addEventListener('click', () => document.body.classList.remove('sidebar-open'));
-    $('#clearHistoryButton').addEventListener('click', () => {
-      if (!state.conversations.length || !confirm('이 브라우저에 저장된 모든 SchoolAI 대화 기록을 삭제할까요? 복구할 수 없습니다.')) return;
-      endConnection(); state.conversations = []; state.activeId = null; localStorage.removeItem(CONFIG.STORAGE_KEY); renderConversationList(); createConversation('auto');
-    });
 
     window.addEventListener('online', () => { showToast('인터넷 연결이 복구되었습니다.'); if (activeConversation() && !state.directLine) connect(activeConversation()); });
     window.addEventListener('offline', () => setStatus('error', '오프라인'));
@@ -1846,6 +1939,8 @@
     $('#brandName').textContent = CONFIG.SERVICE_NAME;
     populateModelSelect();
     state.conversations = safeLoad();
+    state.conversations.forEach(refreshConversationTitle);
+    save();
     renderConversationList();
     if (state.conversations.length) {
       const latest = [...state.conversations].sort((a, b) => b.updatedAt - a.updatedAt)[0];
