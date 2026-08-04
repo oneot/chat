@@ -789,18 +789,26 @@
 
     #webchat .webchat__bubble--from-user {
       border-color: transparent !important;
-      border-radius: 18px !important;
+      border-radius: 16px !important;
       background: #ededed !important;
       overflow: hidden !important;
+      line-height: 1.5 !important;
     }
 
     #webchat .webchat__bubble--from-user > div,
     #webchat .webchat__bubble--from-user .webchat__bubble__content {
-      border-radius: 18px !important;
+      border-radius: 16px !important;
     }
 
     #webchat .webchat__bubble--from-user .webchat__bubble__content {
-      padding: 8px 12px !important;
+      min-height: 0 !important;
+      padding: 6px 10px !important;
+    }
+
+    #webchat .webchat__bubble--from-user .webchat__text-content {
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
 
     /* The app owns response feedback so it also appears before the first greeting. */
@@ -1305,11 +1313,43 @@
       '주세요', '제가', '내가', '저는', '나는', '우리', '이것', '저것', '여기', '저기', 'schoolai'
     ]);
 
+    const TITLE_ACTION_WORDS = new Set([
+      '분석', '요약', '번역', '작성', '수정', '정리', '비교', '설명', '추천', '설계',
+      '개발', '삭제', '검토', '개선', '해결', '변환', '학습', '검색', '제작', '만들기'
+    ]);
+
+    function koreanAndParticle(word) {
+      const last = String(word).charCodeAt(String(word).length - 1);
+      if (last >= 0xAC00 && last <= 0xD7A3) return (last - 0xAC00) % 28 ? '과' : '와';
+      return '와';
+    }
+
+    function joinTitleWords(words) {
+      if (words.length < 2) return words[0] || '';
+      if (words.length === 2) return words[0] + koreanAndParticle(words[0]) + ' ' + words[1];
+      return words.slice(0, -1).join(', ') + koreanAndParticle(words[words.length - 2]) + ' ' + words[words.length - 1];
+    }
+
+    function formatNaturalTitle(tokens) {
+      const unique = [...new Set(tokens)].slice(0, 3);
+      if (!unique.length) return '일반 대화';
+      const actions = unique.filter(token => TITLE_ACTION_WORDS.has(token));
+      const subjects = unique.filter(token => !TITLE_ACTION_WORDS.has(token));
+      if (subjects.length && actions.length) {
+        const actionPhrase = actions.length === 1 && actions[0] === '작성' ? '글 작성' : joinTitleWords(actions);
+        return (joinTitleWords(subjects) + ' ' + actionPhrase).slice(0, 34);
+      }
+      if (subjects.length) return (joinTitleWords(subjects) + ' 이야기').slice(0, 34);
+      return (joinTitleWords(actions) + ' 작업').slice(0, 34);
+    }
+
     function normalizeTitleToken(value) {
       let token = cleanText(value, 60).toLowerCase().replace(/^[.+#-]+|[.+#-]+$/g, '');
       if (!/[a-z0-9가-힣]/i.test(token)) return '';
       if (/^[가-힣]+$/.test(token)) {
         token = token.replace(/(에서는|으로는|에게서|부터는|까지는|이라는|에서|으로|에게|부터|까지|처럼|보다|이라|라고|하고|이며|은|는|이|가|을|를|의|에|로|와|과|도|만)$/u, '');
+        const actionStem = [...TITLE_ACTION_WORDS].find(action => token.startsWith(action) && /(해줘|해주세요|해줄래|해봐|하기|하고|해요|합니다|한다)$/u.test(token));
+        if (actionStem) token = actionStem;
       }
       if (token.length < 2 || /^\d+$/.test(token) || TITLE_STOP_WORDS.has(token)) return '';
       return token;
@@ -1321,11 +1361,20 @@
         .slice(-18);
       if (!recent.some(message => message.role === 'user')) return '';
 
+      const meaningfulUserTokens = recent
+        .filter(message => message.role === 'user')
+        .flatMap(message => cleanText(message.text)
+          .replace(/[^\p{L}\p{N}.+#-]+/gu, ' ')
+          .split(/\s+/)
+          .map(normalizeTitleToken)
+          .filter(Boolean));
+      if (!meaningfulUserTokens.length) return '간단한 인사';
+
       const latestContext = recent.slice(-8).map(message => cleanText(message.text)).join(' ');
       const mentionsTitle = /(대화.{0,8}제목|제목.{0,8}대화|제목.{0,8}(맥락|자동|갱신|업데이트))/u.test(latestContext);
       const mentionsDelete = /(휴지통|대화.{0,8}삭제|삭제.{0,8}대화)/u.test(latestContext);
       const mentionsResumeDuplicate = /(두\s*번|중복).{0,18}(응답|말|대화)|(불러|이어|재개).{0,18}(두\s*번|중복)/u.test(latestContext);
-      if (mentionsTitle && mentionsDelete) return '대화 제목·삭제 관리';
+      if (mentionsTitle && mentionsDelete) return '대화 제목과 삭제 관리';
       if (mentionsResumeDuplicate && !mentionsTitle && !mentionsDelete) return '대화 재개 중복 응답';
       if (mentionsTitle) return '대화 제목 자동 갱신';
       if (mentionsDelete) return '대화 기록 삭제';
@@ -1342,19 +1391,20 @@
         const counts = new Map();
         tokens.forEach(token => counts.set(token, (counts.get(token) || 0) + 1));
         counts.forEach((count, token) => {
-          const previous = scores.get(token) || { token, score: 0, last: 0 };
+          const previous = scores.get(token) || { token, score: 0, last: 0, order: scores.size };
           const roleWeight = message.role === 'user' ? 3 : 1;
           const contextWeight = message.carried ? .6 : 1;
           const recencyWeight = .7 + ((index + 1) / recent.length) * .8;
-          previous.score += roleWeight * contextWeight * recencyWeight * (1 + Math.min(count - 1, 2) * .5);
+          const actionWeight = TITLE_ACTION_WORDS.has(token) ? 1.18 : 1;
+          previous.score += roleWeight * contextWeight * recencyWeight * actionWeight * (1 + Math.min(count - 1, 2) * .5);
           previous.last = index;
           scores.set(token, previous);
         });
       });
 
-      const ranked = [...scores.values()].sort((a, b) => b.score - a.score || b.last - a.last || a.token.localeCompare(b.token, 'ko'));
+      const ranked = [...scores.values()].sort((a, b) => b.score - a.score || b.last - a.last || a.order - b.order);
       if (!ranked.length) return '일반 대화';
-      return ranked.slice(0, 3).map(item => item.token).join(' · ').slice(0, 34);
+      return formatNaturalTitle(ranked.slice(0, 3).map(item => item.token));
     }
 
     function refreshConversationTitle(conversation) {
@@ -1920,9 +1970,10 @@
             bubbleBorderRadius: 0,
             bubbleFromUserBackground: '#ececec',
             bubbleFromUserBorderColor: 'transparent',
-            bubbleFromUserBorderRadius: 18,
+            bubbleFromUserBorderRadius: 16,
             bubbleFromUserNubSize: 0,
             bubbleFromUserTextColor: '#202020',
+            bubbleMinHeight: 32,
             bubbleMaxWidth: 760,
             botAvatarBackgroundColor: 'transparent',
             botAvatarInitials: '',
