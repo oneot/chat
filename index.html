@@ -764,6 +764,41 @@
       border-radius: 18px !important;
     }
 
+    /* Keep Web Chat typing feedback aligned with the centered conversation. */
+    #webchat .webchat__typing-indicator {
+      width: 42px !important;
+      min-width: 42px !important;
+      height: 22px !important;
+      margin-left: max(20px, calc((100% - 820px) / 2)) !important;
+      padding: 0 !important;
+      border: 0 !important;
+      border-radius: 999px !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      overflow: visible !important;
+    }
+
+    #webchat .webchat__typing-indicator > * { display: none !important; }
+
+    #webchat .webchat__typing-indicator::after {
+      content: '';
+      display: block;
+      width: 34px;
+      height: 10px;
+      margin: 6px 0;
+      background:
+        radial-gradient(circle at 5px 50%, #a78bfa 0 3px, transparent 3.5px),
+        radial-gradient(circle at 17px 50%, #60a5fa 0 3px, transparent 3.5px),
+        radial-gradient(circle at 29px 50%, #34d399 0 3px, transparent 3.5px);
+      animation: schoolaiTyping 1.15s cubic-bezier(.45,0,.55,1) infinite;
+      transform-origin: center;
+    }
+
+    @keyframes schoolaiTyping {
+      0%, 100% { opacity: .42; transform: translateY(1px) scale(.92); }
+      50% { opacity: 1; transform: translateY(-1px) scale(1); }
+    }
+
     #webchat .webchat__send-box {
       position: relative;
       width: min(820px, calc(100% - 40px));
@@ -808,20 +843,47 @@
       min-width: 38px !important;
       height: 38px !important;
       margin: auto 0 8px 9px !important;
+      width: 42px !important;
+      min-width: 42px !important;
+      height: 42px !important;
+      margin: auto 0 6px 8px !important;
       padding: 0 !important;
       color: #2c2c2c !important;
       background: transparent !important;
+      overflow: visible !important;
     }
 
     #webchat .webchat__send-box__button:not(:last-child) svg { display: none !important; }
 
     #webchat .webchat__send-box__button:not(:last-child)::before {
+    #webchat .webchat__send-box__button:not(:last-child)::before { content: none; }
+
+    #webchat .webchat__send-box__button:not(:last-child) > button {
+      width: 42px !important;
+      min-width: 42px !important;
+      height: 42px !important;
+      display: grid !important;
+      place-items: center !important;
+      padding: 0 !important;
+      border: 0 !important;
+      border-radius: 999px !important;
+      color: #282828 !important;
+      background: transparent !important;
+      cursor: pointer !important;
+    }
+
+    #webchat .webchat__send-box__button:not(:last-child) > button::before {
       content: '+';
       display: block;
+      pointer-events: none;
       font-size: 28px;
       font-weight: 300;
       line-height: 1;
       transform: translateY(-1px);
+    }
+
+    #webchat .webchat__send-box__button:not(:last-child) > button:hover {
+      background: #f1f1f1 !important;
     }
 
     #webchat .webchat__send-box__button:last-child {
@@ -833,11 +895,21 @@
       margin: auto 10px 8px 0 !important;
       padding: 0 !important;
       background: #1f1f1f !important;
+      color: #242424 !important;
+      background: transparent !important;
       overflow: hidden !important;
+      transition: background 140ms ease !important;
+    }
+
+    #webchat .webchat__send-box__button:last-child:hover { background: #f1f1f1 !important; }
+
+    #webchat .webchat__send-box__button:last-child .webchat__icon-button__shade {
+      display: none !important;
     }
 
     #webchat .webchat__send-box__button:last-child svg {
       fill: #fff !important;
+      fill: #242424 !important;
     }
 
     .visually-hidden-select {
@@ -910,6 +982,8 @@
       bottom: calc(100% + 9px);
       width: min(312px, calc(100vw - 36px));
       padding: 7px;
+      display: grid;
+      gap: 4px;
       border: 1px solid rgba(20, 20, 20, .1);
       border-radius: 16px;
       background: rgba(255, 255, 255, .98);
@@ -930,8 +1004,10 @@
     .model-menu-item {
       width: 100%;
       min-height: 52px;
+      min-height: 50px;
       display: grid;
       grid-template-columns: 28px minmax(0, 1fr) 18px;
+      grid-template-columns: 18px minmax(0, 1fr) 18px;
       align-items: center;
       gap: 9px;
       padding: 7px 9px;
@@ -945,6 +1021,12 @@
 
     .model-menu-item:hover,
     .model-menu-item[aria-selected="true"] { background: #f3f3f3; }
+    .model-menu-item[aria-selected="true"] { background: #f4f4f4; }
+
+    .model-menu-item:focus-visible {
+      outline: 2px solid rgba(103, 111, 231, .28);
+      outline-offset: -2px;
+    }
 
     .model-glyph {
       width: 26px;
@@ -957,7 +1039,20 @@
       background: #fff;
       font-size: 10px;
       font-weight: 750;
+      width: 9px;
+      height: 9px;
+      justify-self: center;
+      border: 0;
+      border-radius: 999px;
+      background: #a78bfa;
+      box-shadow: 0 0 0 3px rgba(167,139,250,.12);
+      font-size: 0;
     }
+
+    .model-menu-item[data-route="sonnet5"] .model-glyph { background: #fb7185; box-shadow: 0 0 0 3px rgba(251,113,133,.12); }
+    .model-menu-item[data-route="opus5"] .model-glyph { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.12); }
+    .model-menu-item[data-route="gpt55"] .model-glyph { background: #38bdf8; box-shadow: 0 0 0 3px rgba(56,189,248,.12); }
+    .model-menu-item[data-route="gpt56"] .model-glyph { background: #34d399; box-shadow: 0 0 0 3px rgba(52,211,153,.12); }
 
     .model-menu-copy { min-width: 0; }
     .model-menu-copy strong { display: block; font-size: 12px; font-weight: 650; }
@@ -1001,6 +1096,7 @@
 
     @media (max-width: 780px) {
       #webchat .webchat__basic-transcript__activity { width: calc(100% - 24px); }
+      #webchat .webchat__typing-indicator { margin-left: 12px !important; }
       #webchat .webchat__send-box { width: calc(100% - 20px); margin-bottom: 10px; border-radius: 23px !important; }
       .composer-model-layer { bottom: 10px; width: calc(100% - 20px); }
       .model-picker { right: 54px; }
@@ -1088,6 +1184,11 @@
         { id: 'opus5', label: 'Claude Opus 5', glyph: 'O5', description: '깊이 있는 분석과 긴 문서', target: 'CA2-Claude Opus5' },
         { id: 'gpt55', label: 'GPT-5.5 Chat', glyph: '5.5', description: '자연스러운 대화와 아이디어', target: 'CA3-GPT-5.5 Chat' },
         { id: 'gpt56', label: 'GPT-5.6 Reasoning', glyph: '5.6', description: '복잡한 추론·수학·코딩', target: 'CA4-GPT-5.6 Reasoning' }
+        { id: 'auto', label: 'Auto', description: '요청에 맞는 에이전트를 자동 선택', target: 'SchoolAI-Orchestrator' },
+        { id: 'sonnet5', label: 'Claude Sonnet 5', description: '빠른 글쓰기와 일상 작업', target: 'CA1-Claude Sonnet5' },
+        { id: 'opus5', label: 'Claude Opus 5', description: '깊이 있는 분석과 긴 문서', target: 'CA2-Claude Opus5' },
+        { id: 'gpt55', label: 'GPT-5.5 Chat', description: '자연스러운 대화와 아이디어', target: 'CA3-GPT-5.5 Chat' },
+        { id: 'gpt56', label: 'GPT-5.6 Reasoning', description: '복잡한 추론·수학·코딩', target: 'CA4-GPT-5.6 Reasoning' }
       ])
     });
 
@@ -1303,6 +1404,7 @@
         const glyph = document.createElement('span');
         glyph.className = 'model-glyph';
         glyph.textContent = model.glyph;
+        glyph.setAttribute('aria-hidden', 'true');
         const copy = document.createElement('span');
         copy.className = 'model-menu-copy';
         const label = document.createElement('strong');
@@ -1677,6 +1779,10 @@
             timestampColor: '#969696'
           }
         }, webChatMount);
+        requestAnimationFrame(() => {
+          const uploadButton = webChatMount.querySelector('.webchat__upload-button > button');
+          if (uploadButton) uploadButton.setAttribute('aria-label', '파일 첨부');
+        });
         webChatMount.querySelector('*')?.focus?.();
       } catch (error) {
         if (serial !== state.connectionSerial) return;
