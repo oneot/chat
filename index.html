@@ -839,10 +839,6 @@
 
     /* Built-in upload control: paperclip -> simple plus button. */
     #webchat .webchat__send-box__button:not(:last-child) {
-      width: 38px !important;
-      min-width: 38px !important;
-      height: 38px !important;
-      margin: auto 0 8px 9px !important;
       width: 42px !important;
       min-width: 42px !important;
       height: 42px !important;
@@ -855,7 +851,6 @@
 
     #webchat .webchat__send-box__button:not(:last-child) svg { display: none !important; }
 
-    #webchat .webchat__send-box__button:not(:last-child)::before {
     #webchat .webchat__send-box__button:not(:last-child)::before { content: none; }
 
     #webchat .webchat__send-box__button:not(:last-child) > button {
@@ -894,7 +889,6 @@
       flex: 0 0 40px !important;
       margin: auto 10px 8px 0 !important;
       padding: 0 !important;
-      background: #1f1f1f !important;
       color: #242424 !important;
       background: transparent !important;
       overflow: hidden !important;
@@ -908,7 +902,6 @@
     }
 
     #webchat .webchat__send-box__button:last-child svg {
-      fill: #fff !important;
       fill: #242424 !important;
     }
 
@@ -1003,10 +996,8 @@
 
     .model-menu-item {
       width: 100%;
-      min-height: 52px;
       min-height: 50px;
       display: grid;
-      grid-template-columns: 28px minmax(0, 1fr) 18px;
       grid-template-columns: 18px minmax(0, 1fr) 18px;
       align-items: center;
       gap: 9px;
@@ -1020,7 +1011,6 @@
     }
 
     .model-menu-item:hover,
-    .model-menu-item[aria-selected="true"] { background: #f3f3f3; }
     .model-menu-item[aria-selected="true"] { background: #f4f4f4; }
 
     .model-menu-item:focus-visible {
@@ -1029,16 +1019,6 @@
     }
 
     .model-glyph {
-      width: 26px;
-      height: 26px;
-      display: grid;
-      place-items: center;
-      border: 1px solid rgba(20,20,20,.08);
-      border-radius: 8px;
-      color: #383838;
-      background: #fff;
-      font-size: 10px;
-      font-weight: 750;
       width: 9px;
       height: 9px;
       justify-self: center;
@@ -1179,11 +1159,6 @@
       CONTEXT_MAX_CHARS: 32000,
       DEBUG: false,
       MODELS: Object.freeze([
-        { id: 'auto', label: 'Auto', glyph: 'AI', description: '요청에 맞는 에이전트를 자동 선택', target: 'SchoolAI-Orchestrator' },
-        { id: 'sonnet5', label: 'Claude Sonnet 5', glyph: 'S5', description: '빠른 글쓰기와 일상 작업', target: 'CA1-Claude Sonnet5' },
-        { id: 'opus5', label: 'Claude Opus 5', glyph: 'O5', description: '깊이 있는 분석과 긴 문서', target: 'CA2-Claude Opus5' },
-        { id: 'gpt55', label: 'GPT-5.5 Chat', glyph: '5.5', description: '자연스러운 대화와 아이디어', target: 'CA3-GPT-5.5 Chat' },
-        { id: 'gpt56', label: 'GPT-5.6 Reasoning', glyph: '5.6', description: '복잡한 추론·수학·코딩', target: 'CA4-GPT-5.6 Reasoning' }
         { id: 'auto', label: 'Auto', description: '요청에 맞는 에이전트를 자동 선택', target: 'SchoolAI-Orchestrator' },
         { id: 'sonnet5', label: 'Claude Sonnet 5', description: '빠른 글쓰기와 일상 작업', target: 'CA1-Claude Sonnet5' },
         { id: 'opus5', label: 'Claude Opus 5', description: '깊이 있는 분석과 긴 문서', target: 'CA2-Claude Opus5' },
@@ -1403,7 +1378,6 @@
         button.setAttribute('aria-selected', 'false');
         const glyph = document.createElement('span');
         glyph.className = 'model-glyph';
-        glyph.textContent = model.glyph;
         glyph.setAttribute('aria-hidden', 'true');
         const copy = document.createElement('span');
         copy.className = 'model-menu-copy';
