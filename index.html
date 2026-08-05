@@ -2339,6 +2339,12 @@
               if (activity.text) {
                 const durationMs = responseStartedAt ? Date.now() - responseStartedAt : 0;
                 const responder = extractResponderModel(activity.text);
+                // Auto에서 실제 Child agent가 확인되면 이 대화는 해당 모델로
+                // 고정합니다. 이후 질문도 같은 Child agent로 보내며, 사용자가
+                // 모델 메뉴에서 Auto/다른 모델을 직접 고를 때만 변경됩니다.
+                if (conversation.route === 'auto' && responder.route !== 'auto') {
+                  conversation.route = responder.route;
+                }
                 responseStartedAt = 0;
                 state.responseInProgress = false;
                 stopWorkingTimer();
