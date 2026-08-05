@@ -255,7 +255,6 @@
     .mobile-menu { display: none; }
     .session-copy { min-width: 0; }
     .session-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 670; }
-    .session-subtitle { margin-top: 3px; color: var(--quiet); font-size: 11px; }
 
     .route-control { display: flex; align-items: center; gap: 9px; }
 
@@ -358,7 +357,6 @@
     .status-dot { width: 6px; height: 6px; display: inline-block; margin-right: 6px; border-radius: 50%; background: #a5adba; }
     .status-dot.online { background: #39a568; box-shadow: 0 0 0 3px rgba(57,165,104,.1); }
     .status-dot.error { background: var(--danger); }
-    .privacy-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     .toast {
       position: fixed;
@@ -392,7 +390,6 @@
       .topbar { min-height: 66px; }
       .route-badge { display: none; }
       .model-select { max-width: 156px; font-size: 12px; }
-      .session-subtitle { display: none; }
       .statusbar { padding-bottom: max(7px, env(safe-area-inset-bottom)); }
     }
 
@@ -400,7 +397,6 @@
       .session-copy { display: none; }
       .topbar { padding-inline: 11px; }
       .model-select { max-width: 202px; }
-      .privacy-note { max-width: 54vw; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -564,7 +560,6 @@
     }
 
     .session-title { font-size: 14px; font-weight: 650; letter-spacing: -.015em; }
-    .session-subtitle { font-size: 10.5px; }
     .route-control { gap: 8px; }
 
     .route-badge {
@@ -721,7 +716,6 @@
     }
 
     .session-title { font-size: 13px; font-weight: 650; }
-    .session-subtitle { margin-top: 2px; font-size: 10px; }
     .route-control { display: none !important; }
 
     .workspace {
@@ -1257,7 +1251,6 @@
           <button class="mobile-menu" id="mobileMenuButton" type="button" aria-label="대화 목록 열기">☰</button>
           <div class="session-copy">
             <div class="session-title" id="sessionTitle">새 대화</div>
-            <div class="session-subtitle" id="sessionSubtitle">새 보안 세션을 준비합니다</div>
           </div>
         </div>
         <span class="route-badge" id="routeBadge" hidden>연결 대상 · Auto</span>
@@ -1285,7 +1278,6 @@
 
       <footer class="statusbar">
         <div id="connectionStatus"><span class="status-dot"></span>준비 중</div>
-        <div class="privacy-note">대화 기록은 이 브라우저에만 저장됩니다 · 민감정보 입력 금지</div>
       </footer>
     </main>
   </div>
@@ -1344,7 +1336,7 @@
       modelSelect: $('#modelSelect'), routeBadge: $('#routeBadge'),
       composerModelLayer: $('#composerModelLayer'), modelPickerButton: $('#modelPickerButton'),
       modelPickerGlyph: $('#modelPickerGlyph'), modelPickerLabel: $('#modelPickerLabel'), modelPickerMenu: $('#modelPickerMenu'),
-      sessionTitle: $('#sessionTitle'), sessionSubtitle: $('#sessionSubtitle'),
+      sessionTitle: $('#sessionTitle'),
       connectionStatus: $('#connectionStatus'), responseLoader: $('#responseLoader'),
       responseLoaderTime: $('#responseLoaderTime'), toast: $('#toast')
     };
@@ -1865,11 +1857,6 @@
       elements.modelPickerLabel.textContent = displayModel.label;
       elements.routeBadge.textContent = '연결 대상 · ' + model.label;
       elements.sessionTitle.textContent = conversation ? conversation.title : '새 대화';
-      elements.sessionSubtitle.textContent = conversation
-        ? model.target + ' · ' + (conversation.contextPending
-          ? '이전 문맥 ' + (conversation.contextMeta?.messageCount || 0) + '개 전달 준비'
-          : conversation.messages.length ? '로컬 기록 ' + conversation.messages.length + '개' : '새 보안 세션')
-        : '새 보안 세션을 준비합니다';
     }
 
     function renderConversationList() {
@@ -2143,7 +2130,6 @@
             setStatus('online', '보안 연결됨');
             setResponseLoading(Boolean(conversation.contextPending));
             elements.composerModelLayer.hidden = Boolean(conversation.contextPending);
-            elements.sessionSubtitle.textContent = 'SchoolAI-Orchestrator · ' + model.label + ' 선택';
             if (conversation.contextPending) {
               setTimeout(() => {
                 if (serial === state.connectionSerial) transferStoredContext(directLine, conversation, webUserId);
