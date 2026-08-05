@@ -1410,6 +1410,23 @@
       return CONFIG.MODELS.find(model => model.id === id) || CONFIG.MODELS[0];
     }
 
+    const MODEL_MARKER_PATTERN = /(?:\r?\n)?\[\[SCHOOLAI_MODEL:(sonnet5|opus5|gpt55|gpt56)\]\]\s*$/i;
+
+    function extractResponderModel(value) {
+      const original = cleanText(value);
+      const match = original.match(MODEL_MARKER_PATTERN);
+      return {
+        text: match ? original.replace(MODEL_MARKER_PATTERN, '').trimEnd() : original,
+        route: match ? routeById(match[1].toLowerCase()).id : 'auto'
+      };
+    }
+
+    function displayedRoute(conversation) {
+      if (!conversation) return 'auto';
+      if (conversation.route !== 'auto') return conversation.route;
+      return routeById(conversation.lastResponderRoute).id;
+    }
+
     function cleanText(value, max = 12000) {
       if (typeof value !== 'string') return '';
       return value.replace(/\u0000/g, '').slice(0, max);
@@ -1429,6 +1446,7 @@
           id: cleanText(item.id, 120) || uid('chat'),
           title: cleanText(item.title, 80) || '이전 대화',
           route: routeById(item.route).id,
+          lastResponderRoute: routeById(item.lastResponderRoute).id,
           createdAt: Number(item.createdAt) || Date.now(),
           updatedAt: Number(item.updatedAt) || Date.now(),
           contextPending: Boolean(item.contextPending),
@@ -1445,6 +1463,7 @@
             text: cleanText(message.text),
             at: Number(message.at) || Date.now(),
             durationMs: Math.max(0, Number(message.durationMs) || 0),
+            responderRoute: routeById(message.responderRoute).id,
             carried: Boolean(message.carried)
           })).filter(message => message.text) : []
         })).filter(hasSubmittedUserMessage).slice(0, 100);
@@ -1587,8 +1606,10 @@
         text: safeText,
         at: Date.now(),
         durationMs: role === 'assistant' ? Math.max(0, Number(options.durationMs) || 0) : 0,
+        responderRoute: role === 'assistant' ? routeById(options.responderRoute).id : 'auto',
         carried: false
       });
+      if (role === 'assistant') conversation.lastResponderRoute = routeById(options.responderRoute).id;
       conversation.messages = conversation.messages.slice(-300);
       conversation.updatedAt = Date.now();
       refreshConversationTitle(conversation);
@@ -1891,7 +1912,10 @@
 
     function updateHeader(conversation) {
       const model = routeById(conversation ? conversation.route : 'auto');
+      const displayModel = routeById(displayedRoute(conversation));
       syncModelPicker(model.id);
+      elements.modelPickerGlyph.dataset.route = displayModel.id;
+      elements.modelPickerLabel.textContent = displayModel.label;
       elements.routeBadge.textContent = '연결 대상 · ' + model.label;
       elements.sessionTitle.textContent = conversation ? conversation.title : '새 대화';
       elements.sessionSubtitle.textContent = conversation
@@ -2120,6 +2144,7 @@
         id: uid('chat'),
         title: cleanText(options.title, 80) || '새 대화',
         route: routeById(routeId).id,
+        lastResponderRoute: routeById(options.lastResponderRoute || routeId).id,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         messages: Array.isArray(options.messages) ? options.messages : [],
@@ -2313,12 +2338,20 @@
               setResponseLoading(false);
               if (activity.text) {
                 const durationMs = responseStartedAt ? Date.now() - responseStartedAt : 0;
+                const responder = extractResponderModel(activity.text);
                 responseStartedAt = 0;
                 state.responseInProgress = false;
                 stopWorkingTimer();
-                addMessage('assistant', activity.text, { durationMs });
-                const result = next(action);
-                requestAnimationFrame(() => decorateLatestAssistantActivity(webChatMount, activity.text, durationMs));
+                addMessage('assistant', responder.text, { durationMs, responderRoute: responder.route });
+                const cleanAction = responder.text === activity.text ? action : {
+                  ...action,
+                  payload: {
+                    ...action.payload,
+                    activity: { ...activity, text: responder.text }
+                  }
+                };
+                const result = next(cleanAction);
+                requestAnimationFrame(() => decorateLatestAssistantActivity(webChatMount, responder.text, durationMs));
                 return result;
               }
             }
@@ -2326,6 +2359,8 @@
           if (action.type === 'WEB_CHAT/SEND_MESSAGE' && action.payload && action.payload.text) {
             responseStartedAt = Date.now();
             state.responseInProgress = true;
+            conversation.lastResponderRoute = conversation.route === 'auto' ? 'auto' : conversation.route;
+            updateHeader(conversation);
             setResponseLoading(true);
             startWorkingTimer(responseStartedAt);
             addMessage('user', action.payload.text);
@@ -2471,7 +2506,12 @@
     function changeModel(nextRoute) {
       const current = activeConversation();
       if (!current) return createConversation(nextRoute);
-      if (current.route === nextRoute) return;
+      if (current.route === nextRoute) {
+        current.lastResponderRoute = current.route;
+        save();
+        updateHeader(current);
+        return;
+      }
       if (state.responseInProgress || state.awaitingContextResponse) {
         showToast('현재 답변이 끝난 뒤 모델을 변경해 주세요.');
         syncModelPicker(current.route);
@@ -2479,6 +2519,7 @@
       }
 
       current.route = routeById(nextRoute).id;
+      current.lastResponderRoute = current.route;
       current.updatedAt = Date.now();
       save();
       renderConversationList();
