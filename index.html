@@ -836,6 +836,20 @@
 
     .schoolai-response-tools { margin-bottom: 12px; }
 
+    .schoolai-response-block {
+      width: 100%;
+      min-width: 0;
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .schoolai-response-block > .webchat__bubble {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+
     .response-duration:empty { display: none; }
 
     .response-copy-button {
@@ -1718,11 +1732,12 @@
           !activity.querySelector('.schoolai-response-tools') &&
           renderedText !== greetingText;
       });
-      const main = target?.querySelector('.webchat__bubble:not(.webchat__bubble--from-user)') ||
-        target?.querySelector('.webchat__stacked-layout__main') ||
-        target;
-      if (main) {
-        main.append(createResponseTools(text, durationMs));
+      const bubble = target?.querySelector('.webchat__bubble:not(.webchat__bubble--from-user)');
+      if (bubble?.parentNode) {
+        const block = document.createElement('div');
+        block.className = 'schoolai-response-block';
+        bubble.parentNode.insertBefore(block, bubble);
+        block.append(bubble, createResponseTools(text, durationMs));
         return;
       }
       if (attempt < 30) setTimeout(() => decorateLatestAssistantActivity(webChatMount, text, durationMs, attempt + 1), 50);
