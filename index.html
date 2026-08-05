@@ -1673,7 +1673,6 @@
       updateHeader(conversation);
       setResponseLoading(false);
       elements.composerModelLayer.hidden = false;
-      showToast('이전 대화를 그대로 이어갈 준비가 끝났습니다.');
     }
 
     function formatDate(timestamp) {
@@ -1926,7 +1925,7 @@
       view.className = 'archive-view';
       const note = document.createElement('div');
       note.className = 'archive-note';
-      note.textContent = '이 기록은 이 브라우저에만 저장됩니다. 저장된 전체 대화를 아래에서 확인할 수 있으며 Direct Line token은 저장하지 않습니다.';
+      note.textContent = '이 브라우저에 저장된 전체 대화를 복원하고 있습니다. Direct Line token은 저장하지 않습니다.';
       view.append(note);
 
       if (!conversation.messages.length) {
@@ -1983,9 +1982,15 @@
       state.activeId = id;
       updateHeader(conversation);
       renderConversationList();
+
+      // 저장된 전체 기록을 먼저 즉시 보여 준 뒤, 같은 대화 객체로 새
+      // Direct Line 세션을 백그라운드 연결합니다. 연결이 완료되면 Web Chat이
+      // 동일한 전체 기록을 다시 그리므로 별도의 "이어서 대화" 단계 없이
+      // 기존 모델과 문맥을 유지한 채 바로 대화할 수 있습니다.
       renderArchive(conversation);
-      setStatus('', '로컬 기록 보기');
+      setStatus('', '대화 복원 중');
       document.body.classList.remove('sidebar-open');
+      connect(conversation);
     }
 
     function deleteConversation(id) {
