@@ -815,6 +815,76 @@
     /* The app owns response feedback so it also appears before the first greeting. */
     #webchat .webchat__typing-indicator { display: none !important; }
 
+    /* “방금/몇 분 전” 대신 실제 답변 소요 시간과 복사 동작을 표시합니다. */
+    #webchat .webchat__activity-status,
+    #webchat .webchat__timestamp,
+    #webchat [class*="activity-status"],
+    #webchat [class*="timestamp"] {
+      display: none !important;
+    }
+
+    .schoolai-response-tools,
+    .archive-response-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 28px;
+      margin-top: 4px;
+      color: #8a8f98;
+      font-size: 11px;
+    }
+
+    .schoolai-response-tools { margin-bottom: 12px; }
+
+    .response-duration:empty { display: none; }
+
+    .response-copy-button {
+      position: relative;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+      border: 0;
+      border-radius: 8px;
+      color: #686d75;
+      background: transparent;
+      cursor: pointer;
+      transition: color var(--ease), background var(--ease);
+    }
+
+    .response-copy-button:hover {
+      color: #202124;
+      background: rgba(32, 33, 36, .06);
+    }
+
+    .response-copy-button::before,
+    .response-copy-button::after {
+      content: '';
+      position: absolute;
+      width: 9px;
+      height: 9px;
+      border: 1.35px solid currentColor;
+      border-radius: 2px;
+    }
+
+    .response-copy-button::before { left: 8px; top: 8px; }
+    .response-copy-button::after { left: 11px; top: 11px; background: inherit; }
+
+    .response-copy-button.is-copied::before,
+    .response-copy-button.is-copied::after { display: none; }
+
+    .response-copy-button.is-copied::after {
+      display: block;
+      content: '✓';
+      width: auto;
+      height: auto;
+      left: 8px;
+      top: 3px;
+      border: 0;
+      color: #2f8f5b;
+      font-size: 16px;
+      background: transparent;
+    }
+
     .response-loader {
       position: absolute;
       z-index: 7;
@@ -1261,7 +1331,7 @@
     const CONFIG = Object.freeze({
       TOKEN_ENDPOINT: 'https://schoolai-token-joowon-2026-fncpbbbbemejc8af.koreacentral-01.azurewebsites.net/api/direct-line-token',
       SERVICE_NAME: 'Multi Model AI Agent',
-      GREETING_MESSAGE: '안녕하세요 👋 무엇을 도와드릴까요? 🤓',
+      GREETING_MESSAGE: '안녕하세요👋 무엇을 도와드릴까요?🤓',
       STORAGE_KEY: 'schoolai.conversations',
       STORAGE_SCHEMA_VERSION: 1,
       CONTEXT_MAX_MESSAGES: 40,
@@ -1337,6 +1407,7 @@
             role: message.role === 'user' ? 'user' : 'assistant',
             text: cleanText(message.text),
             at: Number(message.at) || Date.now(),
+            durationMs: Math.max(0, Number(message.durationMs) || 0),
             carried: Boolean(message.carried)
           })).filter(message => message.text) : []
         })).filter(hasSubmittedUserMessage).slice(0, 100);
@@ -1466,7 +1537,7 @@
       if (title) conversation.title = title;
     }
 
-    function addMessage(role, text) {
+    function addMessage(role, text, options = {}) {
       const conversation = activeConversation();
       const safeText = cleanText(text);
       if (!conversation || !safeText) return;
@@ -1474,7 +1545,13 @@
       const last = conversation.messages[conversation.messages.length - 1];
       if (last && last.role === role && last.text === safeText && Date.now() - last.at < 1500) return;
 
-      conversation.messages.push({ role, text: safeText, at: Date.now(), carried: false });
+      conversation.messages.push({
+        role,
+        text: safeText,
+        at: Date.now(),
+        durationMs: role === 'assistant' ? Math.max(0, Number(options.durationMs) || 0) : 0,
+        carried: false
+      });
       conversation.messages = conversation.messages.slice(-300);
       conversation.updatedAt = Date.now();
       refreshConversationTitle(conversation);
@@ -1569,6 +1646,68 @@
       try {
         return new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(timestamp);
       } catch (_) { return ''; }
+    }
+
+    function formatResponseDuration(durationMs) {
+      const measuredMs = Math.max(0, Number(durationMs) || 0);
+      if (!measuredMs) return '';
+      const seconds = Math.max(1, Math.round(measuredMs / 1000));
+      if (seconds < 60) return '답변까지 ' + seconds + '초';
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return '답변까지 ' + minutes + '분' + (remainingSeconds ? ' ' + remainingSeconds + '초' : '');
+    }
+
+    async function copyResponseText(text, button) {
+      try {
+        await navigator.clipboard.writeText(cleanText(text));
+        button.classList.add('is-copied');
+        button.setAttribute('aria-label', '복사됨');
+        setTimeout(() => {
+          button.classList.remove('is-copied');
+          button.setAttribute('aria-label', '답변 복사');
+        }, 1400);
+      } catch (_) {
+        showToast('답변을 복사하지 못했습니다. 브라우저 권한을 확인해 주세요.');
+      }
+    }
+
+    function createResponseTools(text, durationMs, archive = false) {
+      const tools = document.createElement('div');
+      tools.className = archive ? 'archive-response-tools' : 'schoolai-response-tools';
+      const duration = document.createElement('span');
+      duration.className = 'response-duration';
+      duration.textContent = formatResponseDuration(durationMs);
+      const copyButton = document.createElement('button');
+      copyButton.type = 'button';
+      copyButton.className = 'response-copy-button';
+      copyButton.setAttribute('aria-label', '답변 복사');
+      copyButton.title = '복사';
+      copyButton.addEventListener('click', () => copyResponseText(text, copyButton));
+      tools.append(duration, copyButton);
+      return tools;
+    }
+
+    function decorateLatestAssistantActivity(webChatMount, text, durationMs, attempt = 0) {
+      if (!webChatMount) return;
+      const greetingText = cleanText(CONFIG.GREETING_MESSAGE).replace(/\s+/g, ' ').trim();
+      const activities = [...webChatMount.querySelectorAll('.webchat__basic-transcript__activity')].reverse();
+      const target = activities.find(activity => {
+        const renderedText = cleanText(activity.querySelector('.webchat__text-content')?.textContent || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        return !activity.querySelector('.webchat__bubble--from-user') &&
+          !activity.querySelector('.schoolai-response-tools') &&
+          renderedText !== greetingText;
+      });
+      const main = target?.querySelector('.webchat__bubble:not(.webchat__bubble--from-user)') ||
+        target?.querySelector('.webchat__stacked-layout__main') ||
+        target;
+      if (main) {
+        main.append(createResponseTools(text, durationMs));
+        return;
+      }
+      if (attempt < 30) setTimeout(() => decorateLatestAssistantActivity(webChatMount, text, durationMs, attempt + 1), 50);
     }
 
     function setStatus(kind, label) {
@@ -1738,7 +1877,9 @@
           role.className = 'archive-role'; role.textContent = message.role === 'user' ? '나' : CONFIG.SERVICE_NAME;
           const bubble = document.createElement('div');
           bubble.className = 'archive-bubble'; bubble.textContent = message.text;
-          row.append(role, bubble); view.append(row);
+          row.append(role, bubble);
+          if (message.role === 'assistant') row.append(createResponseTools(message.text, message.durationMs, true));
+          view.append(row);
         });
         const action = document.createElement('div');
         action.className = 'continue-panel';
@@ -1976,6 +2117,8 @@
         const webUserId = uid('web');
         state.directLine = directLine;
         let suppressFirstRemoteBotMessage = true;
+        let responseStartedAt = 0;
+        let webChatMount = null;
 
         const store = window.WebChat.createStore({}, () => next => action => {
           if (action.type === 'DIRECT_LINE/CONNECT_FULFILLED') {
@@ -2008,14 +2151,25 @@
                 return;
               }
               setResponseLoading(false);
-              if (activity.text) addMessage('assistant', activity.text);
+              if (activity.text) {
+                const durationMs = responseStartedAt ? Date.now() - responseStartedAt : 0;
+                responseStartedAt = 0;
+                addMessage('assistant', activity.text, { durationMs });
+                const result = next(action);
+                requestAnimationFrame(() => decorateLatestAssistantActivity(webChatMount, activity.text, durationMs));
+                return result;
+              }
             }
           }
           if (action.type === 'WEB_CHAT/SEND_MESSAGE' && action.payload && action.payload.text) {
+            responseStartedAt = Date.now();
             setResponseLoading(true);
             addMessage('user', action.payload.text);
           }
-          if (action.type === 'WEB_CHAT/SEND_FILES') setResponseLoading(true);
+          if (action.type === 'WEB_CHAT/SEND_FILES') {
+            responseStartedAt = Date.now();
+            setResponseLoading(true);
+          }
           if (action.type === 'DIRECT_LINE/CONNECT_REJECTED') {
             setResponseLoading(false);
             setStatus('error', '연결 실패');
@@ -2026,7 +2180,7 @@
         // Web Chat uses a React root internally. Reusing a container whose
         // children were removed during a model switch can leave that root in
         // a connected-but-blank state. Mount every session into a fresh node.
-        const webChatMount = document.createElement('div');
+        webChatMount = document.createElement('div');
         webChatMount.className = 'webchat-mount';
         webChatMount.setAttribute('role', 'region');
         webChatMount.setAttribute('aria-label', model.label + ' 대화');
