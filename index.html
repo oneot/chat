@@ -894,6 +894,7 @@
       height: 24px;
       display: flex;
       align-items: center;
+      gap: 9px;
       pointer-events: none;
       transform: translateX(-50%);
     }
@@ -910,6 +911,16 @@
       animation: schoolaiTyping 1.15s cubic-bezier(.45,0,.55,1) infinite;
       transform-origin: center;
     }
+
+    .response-loader-time {
+      color: #747982;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: -.01em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .response-loader-time[hidden] { display: none; }
 
     @keyframes schoolaiTyping {
       0%, 100% { opacity: .42; transform: translateY(1px) scale(.92); }
@@ -1295,6 +1306,7 @@
         <div id="archive" hidden></div>
         <div class="response-loader" id="responseLoader" role="status" aria-live="polite" aria-label="SchoolAI가 답변을 작성하고 있습니다" hidden>
           <span class="response-loader-dots" aria-hidden="true"></span>
+          <span class="response-loader-time" id="responseLoaderTime" hidden></span>
         </div>
         <div class="composer-model-layer" id="composerModelLayer" hidden>
           <div class="model-picker" id="modelPicker">
@@ -1351,7 +1363,9 @@
       activeId: null,
       directLine: null,
       connectionSerial: 0,
-      toastTimer: null
+      toastTimer: null,
+      workingTimer: null,
+      workingStartedAt: 0
     };
 
     const $ = (selector) => document.querySelector(selector);
@@ -1361,7 +1375,8 @@
       composerModelLayer: $('#composerModelLayer'), modelPickerButton: $('#modelPickerButton'),
       modelPickerGlyph: $('#modelPickerGlyph'), modelPickerLabel: $('#modelPickerLabel'), modelPickerMenu: $('#modelPickerMenu'),
       sessionTitle: $('#sessionTitle'), sessionSubtitle: $('#sessionSubtitle'),
-      connectionStatus: $('#connectionStatus'), responseLoader: $('#responseLoader'), toast: $('#toast')
+      connectionStatus: $('#connectionStatus'), responseLoader: $('#responseLoader'),
+      responseLoaderTime: $('#responseLoaderTime'), toast: $('#toast')
     };
 
     function uid(prefix) {
@@ -1648,14 +1663,17 @@
       } catch (_) { return ''; }
     }
 
-    function formatResponseDuration(durationMs) {
-      const measuredMs = Math.max(0, Number(durationMs) || 0);
-      if (!measuredMs) return '';
-      const seconds = Math.max(1, Math.round(measuredMs / 1000));
-      if (seconds < 60) return '답변까지 ' + seconds + '초';
+    function formatElapsedCompact(durationMs) {
+      const seconds = Math.max(0, Math.floor(Math.max(0, Number(durationMs) || 0) / 1000));
+      if (seconds < 60) return seconds + 's';
       const minutes = Math.floor(seconds / 60);
       const remainingSeconds = seconds % 60;
-      return '답변까지 ' + minutes + '분' + (remainingSeconds ? ' ' + remainingSeconds + '초' : '');
+      return minutes + 'm' + (remainingSeconds ? ' ' + remainingSeconds + 's' : '');
+    }
+
+    function formatResponseDuration(durationMs) {
+      const measuredMs = Math.max(0, Number(durationMs) || 0);
+      return measuredMs ? 'Worked for ' + formatElapsedCompact(Math.max(1000, measuredMs)) : '';
     }
 
     async function copyResponseText(text, button) {
@@ -1719,6 +1737,27 @@
 
     function setResponseLoading(isLoading) {
       elements.responseLoader.hidden = !isLoading;
+    }
+
+    function updateWorkingTimer() {
+      if (!state.workingStartedAt) return;
+      elements.responseLoaderTime.textContent = 'Working for ' + formatElapsedCompact(Date.now() - state.workingStartedAt);
+    }
+
+    function startWorkingTimer(startedAt = Date.now()) {
+      clearInterval(state.workingTimer);
+      state.workingStartedAt = startedAt;
+      elements.responseLoaderTime.hidden = false;
+      updateWorkingTimer();
+      state.workingTimer = setInterval(updateWorkingTimer, 1000);
+    }
+
+    function stopWorkingTimer() {
+      clearInterval(state.workingTimer);
+      state.workingTimer = null;
+      state.workingStartedAt = 0;
+      elements.responseLoaderTime.hidden = true;
+      elements.responseLoaderTime.textContent = '';
     }
 
     function showToast(message) {
@@ -1981,6 +2020,7 @@
 
     function endConnection() {
       state.connectionSerial += 1;
+      stopWorkingTimer();
       setResponseLoading(false);
       if (state.directLine && typeof state.directLine.end === 'function') {
         try { state.directLine.end(); } catch (_) {}
@@ -2147,13 +2187,14 @@
 
               if (suppressFirstRemoteBotMessage) {
                 suppressFirstRemoteBotMessage = false;
-                setResponseLoading(Boolean(conversation.contextPending));
+                if (!responseStartedAt) setResponseLoading(Boolean(conversation.contextPending));
                 return;
               }
               setResponseLoading(false);
               if (activity.text) {
                 const durationMs = responseStartedAt ? Date.now() - responseStartedAt : 0;
                 responseStartedAt = 0;
+                stopWorkingTimer();
                 addMessage('assistant', activity.text, { durationMs });
                 const result = next(action);
                 requestAnimationFrame(() => decorateLatestAssistantActivity(webChatMount, activity.text, durationMs));
@@ -2164,13 +2205,16 @@
           if (action.type === 'WEB_CHAT/SEND_MESSAGE' && action.payload && action.payload.text) {
             responseStartedAt = Date.now();
             setResponseLoading(true);
+            startWorkingTimer(responseStartedAt);
             addMessage('user', action.payload.text);
           }
           if (action.type === 'WEB_CHAT/SEND_FILES') {
             responseStartedAt = Date.now();
             setResponseLoading(true);
+            startWorkingTimer(responseStartedAt);
           }
           if (action.type === 'DIRECT_LINE/CONNECT_REJECTED') {
+            stopWorkingTimer();
             setResponseLoading(false);
             setStatus('error', '연결 실패');
           }
