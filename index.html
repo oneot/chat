@@ -2297,11 +2297,15 @@
               if (schoolAIKind === 'local-greeting') return next(action);
               if (schoolAIKind === 'restored-history') return next(action);
 
-              if (suppressFirstRemoteBotMessage) {
+              // 사용자가 아직 질문하지 않은 동안 도착한 첫 bot message만
+              // Copilot Studio의 원격 Greeting으로 간주해 숨깁니다.
+              // 질문 전 Greeting이 늦어졌더라도 실제 답변까지 숨기면 안 됩니다.
+              if (suppressFirstRemoteBotMessage && !responseStartedAt) {
                 suppressFirstRemoteBotMessage = false;
-                if (!responseStartedAt) setResponseLoading(Boolean(conversation.contextPending));
+                setResponseLoading(Boolean(conversation.contextPending));
                 return;
               }
+              suppressFirstRemoteBotMessage = false;
               if (state.awaitingContextResponse) {
                 completeContextRestore(conversation);
                 return;
