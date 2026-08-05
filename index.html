@@ -99,7 +99,7 @@
       color: white;
       background: linear-gradient(145deg, #252f43, #111827);
       box-shadow: 0 7px 18px rgba(19, 29, 47, .16);
-      font-size: 15px;
+      font-size: 20px;
       font-weight: 760;
       letter-spacing: -.04em;
     }
@@ -517,7 +517,7 @@
       color: #fff;
       background: linear-gradient(135deg, #6d8bff 0%, #9b85f8 58%, #e6a7ef 100%);
       box-shadow: 0 5px 16px rgba(109, 139, 255, .38);
-      font-size: 20px;
+      font-size: 11px;
       font-weight: 750;
       letter-spacing: -.02em;
     }
@@ -844,6 +844,23 @@
     @keyframes schoolaiTyping {
       0%, 100% { opacity: .42; transform: translateY(1px) scale(.92); }
       50% { opacity: 1; transform: translateY(-1px) scale(1); }
+    }
+
+    .instant-greeting {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: flex-end;
+      padding: 24px 0 178px;
+    }
+
+    .instant-greeting-message {
+      width: min(820px, calc(100% - 40px));
+      margin: 0 auto;
+      color: #202020;
+      font-size: 15px;
+      line-height: 1.65;
+      white-space: pre-wrap;
     }
 
     #webchat .webchat__send-box {
@@ -1244,6 +1261,7 @@
     const CONFIG = Object.freeze({
       TOKEN_ENDPOINT: 'https://schoolai-token-joowon-2026-fncpbbbbemejc8af.koreacentral-01.azurewebsites.net/api/direct-line-token',
       SERVICE_NAME: 'Multi Model AI Agent',
+      GREETING_MESSAGE: '안녕하세요👋 무엇을 도와드릴까요?🤓',
       STORAGE_KEY: 'schoolai.conversations',
       STORAGE_SCHEMA_VERSION: 1,
       CONTEXT_MAX_MESSAGES: 40,
@@ -1910,6 +1928,22 @@
       panel.append(card); elements.webchat.append(panel);
     }
 
+    function showInstantGreeting() {
+      elements.archive.hidden = true;
+      elements.webchat.hidden = false;
+      elements.composerModelLayer.hidden = true;
+      closeModelPicker();
+
+      const panel = document.createElement('div');
+      panel.className = 'instant-greeting';
+      const message = document.createElement('div');
+      message.className = 'instant-greeting-message';
+      message.textContent = CONFIG.GREETING_MESSAGE;
+      panel.append(message);
+      elements.webchat.replaceChildren(panel);
+      setResponseLoading(true);
+    }
+
     async function requestToken(routeId) {
       if (/YOUR-FUNCTION-APP|강사-function-app/.test(CONFIG.TOKEN_ENDPOINT)) throw new Error('CONFIG_REQUIRED');
       const response = await fetch(CONFIG.TOKEN_ENDPOINT, {
@@ -1931,8 +1965,8 @@
       const model = routeById(conversation.route);
       elements.archive.hidden = true;
       elements.webchat.hidden = false;
-      showState('안전하게 연결하는 중', model.target + '에 사용할 단기 대화 token을 요청하고 있습니다.');
-      setStatus('', '연결 중');
+      showInstantGreeting();
+      setStatus('', '백그라운드 연결 중');
 
       try {
         const tokenInfo = await requestToken(model.id);
@@ -1941,12 +1975,12 @@
         const directLine = window.WebChat.createDirectLine({ token: tokenInfo.token });
         const webUserId = uid('web');
         state.directLine = directLine;
-        let suppressFirstBotGreeting = Boolean(conversation.contextPending);
+        let suppressFirstRemoteBotMessage = true;
 
         const store = window.WebChat.createStore({}, () => next => action => {
           if (action.type === 'DIRECT_LINE/CONNECT_FULFILLED') {
             setStatus('online', '보안 연결됨');
-            setResponseLoading(true);
+            setResponseLoading(Boolean(conversation.contextPending));
             elements.composerModelLayer.hidden = false;
             elements.sessionSubtitle.textContent = model.target + ' · 활성 세션';
             store.dispatch({
@@ -1965,9 +1999,12 @@
           if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
             const activity = action.payload && action.payload.activity;
             if (activity && activity.from && activity.from.role === 'bot' && activity.type === 'message') {
-              if (suppressFirstBotGreeting) {
-                suppressFirstBotGreeting = false;
-                setResponseLoading(true);
+              const schoolAIKind = activity.channelData?.schoolAI?.kind;
+              if (schoolAIKind === 'local-greeting') return next(action);
+
+              if (suppressFirstRemoteBotMessage) {
+                suppressFirstRemoteBotMessage = false;
+                setResponseLoading(Boolean(conversation.contextPending));
                 return;
               }
               setResponseLoading(false);
@@ -2031,6 +2068,23 @@
             timestampColor: '#969696'
           }
         }, webChatMount);
+
+        // 페이지에서 즉시 보여 준 인사말을 실제 Web Chat 화면에도 이어서 표시합니다.
+        // Copilot Studio가 세션 연결 직후 보내는 첫 번째 원격 봇 메시지는
+        // 문구와 관계없이 위 middleware에서 Greeting으로 간주해 숨깁니다.
+        store.dispatch({
+          type: 'DIRECT_LINE/INCOMING_ACTIVITY',
+          payload: {
+            activity: {
+              id: uid('local-greeting'),
+              type: 'message',
+              timestamp: new Date().toISOString(),
+              from: { id: 'schoolai-local-greeting', role: 'bot', name: CONFIG.SERVICE_NAME },
+              text: CONFIG.GREETING_MESSAGE,
+              channelData: { schoolAI: { kind: 'local-greeting' } }
+            }
+          }
+        });
         requestAnimationFrame(() => {
           const uploadButton = webChatMount.querySelector('.webchat__upload-button > button');
           if (uploadButton) uploadButton.setAttribute('aria-label', '파일 첨부');
