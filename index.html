@@ -1,169 +1,197 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>School AI Assistant</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+<title>School AI Orchestrator</title>
+
+<link href="https://fonts.googleapis.com=Inter:wght@300;400;500;600;700&display=swap
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    font-family:'Inter',sans-serif;
+    height:100vh;
+    overflow:hidden;
+    background:#050816;
+    color:white;
+}
+
+.bg{
+    position:fixed;
+    inset:0;
+    background:
+    radial-gradient(circle at 20% 20%,#2F80ED55,transparent 35%),
+    radial-gradient(circle at 80% 30%,#7F5AF055,transparent 35%),
+    radial-gradient(circle at 50% 80%,#00C6FF33,transparent 40%),
+    #050816;
+    animation:move 12s infinite alternate ease-in-out;
+}
+
+@keyframes move{
+    from{
+        filter:hue-rotate(0deg);
+    }
+    to{
+        filter:hue-rotate(50deg);
+    }
+}
+
+.app{
+    position:relative;
+    z-index:2;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding:20px;
+}
+
+.header{
+    height:72px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+
+    backdrop-filter:blur(18px);
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.1);
+
+    border-radius:20px;
+    padding:0 24px;
+
+    box-shadow:
+    0 8px 32px rgba(0,0,0,.3);
+}
+
+.logo{
+    display:flex;
+    align-items:center;
+    gap:14px;
+}
+
+.icon{
+    width:46px;
+    height:46px;
+    border-radius:14px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    background:linear-gradient(
+    135deg,
+    #3B82F6,
+    #8B5CF6
+    );
+    font-size:22px;
+}
+
+.title{
+    display:flex;
+    flex-direction:column;
+}
+
+.title h1{
+    font-size:18px;
+    font-weight:600;
+}
+
+.title span{
+    font-size:12px;
+    color:#A0AEC0;
+}
+
+.badge{
+    padding:8px 14px;
+    border-radius:999px;
+    background:#10B98122;
+    border:1px solid #10B98166;
+    color:#34D399;
+    font-size:12px;
+}
+
+.chat-container{
+    flex:1;
+    margin-top:20px;
+
+    backdrop-filter:blur(18px);
+    background:rgba(255,255,255,0.05);
+
+    border:1px solid rgba(255,255,255,0.1);
+
+    border-radius:24px;
+
+    overflow:hidden;
+
+    box-shadow:
+    0 10px 40px rgba(0,0,0,.4);
+}
+
+iframe{
+    width:100%;
+    height:100%;
+    border:none;
+    background:white;
+}
+
+@media(max-width:768px){
+
+    .title span{
+        display:none;
     }
 
-    body {
-      height: 100vh;
-      overflow: hidden;
-      font-family: "Segoe UI", sans-serif;
-      background: linear-gradient(
-        135deg,
-        #0f172a 0%,
-        #1e3a8a 35%,
-        #2563eb 100%
-      );
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
+    .header{
+        padding:0 16px;
     }
 
-    .container {
-      width: 100%;
-      max-width: 1600px;
-      height: calc(100vh - 40px);
-
-      background: rgba(255,255,255,0.08);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.15);
-
-      border-radius: 24px;
-      overflow: hidden;
-
-      box-shadow:
-        0 10px 30px rgba(0,0,0,0.25),
-        0 0 50px rgba(37,99,235,0.25);
+    .badge{
+        display:none;
     }
-
-    .header {
-      height: 72px;
-      background: rgba(255,255,255,0.08);
-
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-
-      padding: 0 24px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .logo {
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
-
-      background: linear-gradient(
-        135deg,
-        #60a5fa,
-        #2563eb
-      );
-
-      display: flex;
-      align-items: center;
-      justify-content: center;
-
-      color: white;
-      font-size: 18px;
-      font-weight: 700;
-    }
-
-    .title {
-      color: white;
-    }
-
-    .title h1 {
-      font-size: 18px;
-      font-weight: 600;
-    }
-
-    .title p {
-      font-size: 13px;
-      opacity: .75;
-    }
-
-    .iframe-wrapper {
-      height: calc(100% - 72px);
-      background: white;
-    }
-
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-
-    .status {
-      color: rgba(255,255,255,0.7);
-      font-size: 13px;
-    }
-
-    @media (max-width:768px) {
-      body {
-        padding: 0;
-      }
-
-      .container {
-        height: 100vh;
-        border-radius: 0;
-      }
-
-      .header {
-        padding: 0 16px;
-      }
-
-      .title h1 {
-        font-size: 16px;
-      }
-
-      .title p {
-        display: none;
-      }
-    }
-  </style>
+}
+</style>
 </head>
 
 <body>
 
-  <div class="container">
+<div class="bg"></div>
+
+<div class="app">
 
     <div class="header">
-      <div class="brand">
-        <div class="logo">AI</div>
 
-        <div class="title">
-          <h1>School AI Assistant</h1>
-          <p>Powered by Microsoft Copilot Studio</p>
+        <div class="logo">
+
+            <div class="icon">
+                🤖
+            </div>
+
+            <div class="title">
+                <h1>School AI Orchestrator</h1>
+                <span>Powered by Microsoft Copilot Studio</span>
+            </div>
+
         </div>
-      </div>
 
-      <div class="status">
-        ● Online
-      </div>
+        <div class="badge">
+            AI Ready
+        </div>
+
     </div>
 
-    <div class="iframe-wrapper">
-      <iframe
-        src="https://copilotstudio.microsoft.com/environments/Default-2d4925a0-fa86-4da1-94fe-d7887f35d993/bots/cre09_schoolai-orchestrator_n=2&enableFileAttachment=false&cliAgent=true
-      </iframe>
+    <div class="chat-container">
+
+        <iframe
+        src="https://copilotstudio.microsoft.com/environments/Default-2d4925a0-fa86-4da1-94fe-d7887f35d993/bots/cre09_schoolai-orchestrator_EK2Uf9/webchat?__version__=2&enableFileAttachment=false&cliAgent=true">
+        </iframe>
+
     </div>
 
-  </div>
+</div>
 
 </body>
 </html>
