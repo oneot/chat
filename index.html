@@ -1351,6 +1351,12 @@
     }
 
     const MODEL_MARKER_PATTERN = /(?:\r?\n)?\[\[SCHOOLAI_MODEL:(sonnet5|opus5|gpt55|gpt56)\]\]\s*$/i;
+    const STATUS_MARKER_PATTERN = /^\s*\[\[SCHOOLAI_STATUS:(sonnet5|opus5|gpt55|gpt56)\]\]\s*$/i;
+
+    function extractStatusRoute(value) {
+      const match = cleanText(value, 200).match(STATUS_MARKER_PATTERN);
+      return match ? routeById(match[1].toLowerCase()).id : '';
+    }
 
     function extractResponderModel(value) {
       const original = cleanText(value);
@@ -2146,6 +2152,20 @@
               if (schoolAIKind === 'local-greeting') return next(action);
               if (schoolAIKind === 'restored-history') return next(action);
 
+              // 부모 에이전트가 Connected Agent를 실제로 호출하기 직전에 보내는
+              // 단독 상태 메시지입니다. 대화 본문에는 표시하지 않고 현재 대화의
+              // route를 해당 Child agent로 고정해 이후 질문도 같은 Agent로 보냅니다.
+              const statusRoute = extractStatusRoute(activity.text);
+              if (statusRoute) {
+                conversation.route = statusRoute;
+                conversation.lastResponderRoute = statusRoute;
+                conversation.updatedAt = Date.now();
+                save();
+                renderConversationList();
+                updateHeader(conversation);
+                return;
+              }
+
               // 사용자가 아직 질문하지 않은 동안 도착한 첫 bot message만
               // Copilot Studio의 원격 Greeting으로 간주해 숨깁니다.
               // 질문 전 Greeting이 늦어졌더라도 실제 답변까지 숨기면 안 됩니다.
@@ -2172,7 +2192,13 @@
                 responseStartedAt = 0;
                 state.responseInProgress = false;
                 stopWorkingTimer();
-                addMessage('assistant', responder.text, { durationMs, responderRoute: responder.route });
+                const confirmedResponderRoute = responder.route !== 'auto'
+                  ? responder.route
+                  : conversation.route;
+                addMessage('assistant', responder.text, {
+                  durationMs,
+                  responderRoute: confirmedResponderRoute
+                });
                 const cleanAction = responder.text === activity.text ? action : {
                   ...action,
                   payload: {
